@@ -11,7 +11,7 @@
 
 **A cada prompt do usuário e resposta gerada, OBRIGATORIAMENTE:**
 
-1. **Atualizar o arquivo `DIARIO.md`** com uma nova entrada contendo:
+1. **Atualizar AUTOMATICAMENTE o arquivo `DIARIO.md`** com uma nova entrada contendo:
    ```markdown
    ### [DATA] — [Título breve da interação]
 

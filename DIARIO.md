@@ -116,3 +116,19 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 **Decisões de projeto tomadas:**
 > Manter os arquivos como estão no escopo; incluir o vídeo demonstrativo na lista de entregáveis;
 > documentar .cz e CZHF como escolhas da equipe, não exigências do edital.
+
+### 2026-06-22 — Revisão do modularizacao.md conforme correções da claudeSession1
+
+**Prompt do aluno:**
+> Atualizar modularizacao.md para seguir exatamente as correções do claudeSession1.md
+> (lacunas críticas e menores), exceto o registro do vídeo, que será feito manualmente depois.
+
+**Resposta da IA (resumo):**
+> Reescreveu o plano: CRC32 movido para a fundação (Mód. 2), formato .cz já com CRC32/endianess
+> e salto de bloco corrompido (Mód. 9), CLI de threads/bloco no czip (Mód. 10/13), sanitizers
+> asan/tsan no Makefile (Mód. 0/13/14), nova suíte de roundtrip com edge-cases (Mód. 15),
+> decisão da representação de códha única e padding explicitados,
+> e mapa de entregas E1–E4. Módulos renumerados 0–18.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado (reestruturação documental).
