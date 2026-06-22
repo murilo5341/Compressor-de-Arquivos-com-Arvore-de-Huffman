@@ -66,3 +66,53 @@
 > - A bateria de testes deve cobrir casos limite de Huffman, roundtrip byte a byte, corrupcao de blocos e execucao com diferentes quantidades de threads.
 
 ---
+### 2026-06-22 — Criacao do arquivo modularizacao.md como base de build
+
+> Quero modularizar cada parte a qual deve ser feito, nao quero commits gigantes, quero que seja implementado aos poucos para que fique o mais didatico e com o menor acoplamento possivel. Quero modularizar no seguinte sentido: 
+MODULO 1: Construcao da arvore de Huffman e inicio da implementacao da codificacao 
+MOUDULO 2: Estrutura de Descompactacao de arquivos 
+... 
+E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exemplo. Agora que ja temos o context.md nos fornecendo o contexto da aplicacao + as rules que devem ser seguidas. 
+
+**Resposta da IA (resumo):**
+> Criacao do modularizacao.md baseado no contexto e nas regras.
+---
+
+### 2026-06-22 — Avaliação do modularizacao.md como base de build
+
+**Prompt do aluno:**
+> Analisar se o modularizacao.md cobre 100% das lacunas do trabalho.txt,
+> usando RULES.md, context.md e implementacao.md como base.
+
+**Resposta da IA (resumo):**
+> Cobertura ~85%. Identificadas 5 lacunas críticas: (1) CRC32 posicionado tarde,
+> conflitando com E1 e com o fechamento do formato; (2) falta configuração de
+> threads/tamanho de bloco via CLI (REGRA 5/7); (3) códigos limitados a 64 bits
+> sem ressalva; (4) matriz de testes obrigatórios (REGRA 10) não representada;
+> (5) sanitizers (TSan/ASan/Valgrind) ausentes do plano. Mais lacunas menores
+> (endianess, folha única, vídeo  E1–E4).
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação (análise documental).
+
+**Decisões de projeto tomadas:**
+> CRC32 será movido para a fundação; CLI de threads/bloco entra no czip;
+> sanitizers entram no Makefile; r documentada.
+
+### 2026-06-22 — Auditoria de escopo de context.md e RULES.md vs. edital
+
+**Prompt do aluno:**
+> Analisar context.md e RULES.md, comparar com trabalho.txt e reformular caso estejam fora do escopo do Tema 11.
+
+**Resposta da IA (resumo):**
+> Verificou que ambos os arquivos estão dentro do escopo do Tema 11 e fiéis ao edital
+> (Huffman via heap, pipeline de threads, CRC32 por bloco, czip/cunzip, teste de fogo de 1 GB,
+> pesos das entregas e critérios de avaliação corretos). Apontou lacunas menores: ausência do
+> vídeo de até 5 min exigido no pacote final, e recomendou marcar .cz/CZHF como decisão de projeto.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado. Pendente aprovação do aluno para aplicar os ajustes pontuais.
+
+**Decisões de projeto tomadas:**
+> Manter os arquivos como estão no escopo; incluir o vídeo demonstrativo na lista de entregáveis;
+> documentar .cz e CZHF como escolhas da equipe, não exigências do edital.
