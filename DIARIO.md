@@ -45,3 +45,24 @@
 > - Documentar um formato inicial possivel para o arquivo `.cz`, com cabecalho global e metadados por bloco.
 
 ---
+
+### 2026-06-21 — Reforco das regras de implementacao do Tema 11
+
+**Prompt do aluno:**
+> Implemente essas novas mudanças e documente no diario.md
+
+**Resposta da IA (resumo):**
+> A IA atualizou o `RULES.md` para tornar explicitos pontos necessarios para implementar corretamente o Tema 11: compilacao com `-std=c11`, serializacao da arvore no cabecalho de cada bloco, formato minimo do arquivo `.cz`, metadados obrigatorios por bloco, tratamento de padding de bits, politica documentada de CRC32, parametros de linha de comando para threads e tamanho de bloco, testes minimos obrigatorios e requisitos de relatorio experimental com scripts versionados. Tambem removeu o video do escopo automatizado das regras, pois ele sera produzido manualmente pela equipe.
+
+**Erros da IA / Correcoes necessarias:**
+> Nenhum erro identificado nesta interacao. As mudancas foram apenas em documentacao e regras de trabalho, sem codigo C.
+
+**Decisoes de projeto tomadas:**
+> - O arquivo `.cz` deve ter cabecalho global com magic number, versao, tamanho de bloco, quantidade de blocos e endianess documentada.
+> - Cada bloco deve armazenar indice, tamanho original, tamanho comprimido, tamanho da arvore serializada, CRC32, arvore serializada e payload comprimido.
+> - O tamanho original do bloco deve ser o criterio minimo para parar a decodificacao e tratar bits de preenchimento no ultimo byte.
+> - O CRC32 minimo obrigatorio sera o do conteudo original restaurado de cada bloco, salvo decisao posterior documentada.
+> - O `czip` deve permitir variar numero de threads e tamanho de bloco para experimentos e defesa oral.
+> - A bateria de testes deve cobrir casos limite de Huffman, roundtrip byte a byte, corrupcao de blocos e execucao com diferentes quantidades de threads.
+
+---

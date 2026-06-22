@@ -37,7 +37,7 @@
 ## 🔴 REGRA 2 — Linguagem e Compilação
 
 - **Linguagem obrigatória**: C (padrão C11)
-- **Compilação obrigatória**: `gcc -Wall -Wextra -Werror`
+- **Compilação obrigatória**: `gcc -std=c11 -Wall -Wextra -Werror`
 - **Tolerância zero**: 0 warnings. Qualquer warning = penalidade de −5%.
 - Todo código gerado DEVE compilar limpo com as flags acima.
 
@@ -85,7 +85,7 @@ O projeto é estritamente o **Tema 11 — Compressor de Arquivos com Árvore de 
 ### Núcleo de Estrutura de Dados:
 - Árvore de Huffman construída via **heap binário** (fila de prioridade)
 - Geração da **tabela de códigos** por travessia da árvore
-- **Serialização compacta** da árvore no cabeçalho do arquivo
+- **Serialização compacta** da árvore no cabeçalho de cada bloco
 - **Decodificação** descendo a árvore bit a bit
 
 ### Núcleo de Sistemas Operacionais:
@@ -97,6 +97,33 @@ O projeto é estritamente o **Tema 11 — Compressor de Arquivos com Árvore de 
 ### Utilitário final:
 - `czip` — comprime arquivos grandes em blocos
 - `cunzip` — descomprime mantendo integridade
+- `czip` deve permitir configurar **número de threads** e **tamanho do bloco**, para viabilizar medições experimentais e defesa oral
+
+### Formato obrigatório do arquivo `.cz`:
+
+O arquivo compactado deve conter metadados suficientes para que `cunzip` consiga reconstruir, validar, pular blocos corrompidos e restaurar os demais blocos sem depender da memória do processo que compactou.
+
+#### Cabeçalho global mínimo:
+- Assinatura/magic number do formato, por exemplo `CZHF`
+- Versão do formato
+- Tamanho de bloco usado na compactação
+- Quantidade total de blocos
+- Ordem de bytes/endianess documentada
+
+#### Cabeçalho mínimo de cada bloco:
+- Índice sequencial do bloco
+- Tamanho original do bloco, antes da compressão
+- Tamanho do payload comprimido em bytes
+- Tamanho da árvore serializada, em bytes ou bits
+- CRC32 por bloco, conforme política documentada
+- Árvore de Huffman serializada do próprio bloco
+- Payload comprimido em bits
+
+#### Regras de decodificação e integridade:
+- O formato deve permitir localizar corretamente o início do próximo bloco, mesmo quando o bloco atual estiver corrompido.
+- O formato deve permitir parar a decodificação do payload no ponto correto, tratando o último byte parcial e seus bits de preenchimento.
+- O `original_size` do bloco deve ser armazenado e usado como critério mínimo para parar a reconstrução dos bytes originais, salvo se o projeto documentar outro mecanismo equivalente, como quantidade real de bits comprimidos.
+- A política de CRC32 deve ser documentada antes da implementação. O mínimo obrigatório é validar o CRC32 do conteúdo original restaurado de cada bloco.
 
 ### Teste de fogo:
 - Arquivo de **1 GB** comprimido com sucesso
@@ -126,13 +153,16 @@ Por isso:
 
 Toda análise experimental deve:
 - Usar **dados reais** coletados pela equipe (não inventados)
-- Gerar **gráficos** com scripts reproduzíveis (gnuplot, matplotlib, etc.)
+- Gerar **gráficos** com scripts reproduzíveis (gnuplot, matplotlib, etc.) versionados no repositório
 - Confrontar **teoria × prática** (complexidade assintótica vs. medições)
+- Produzir relatório técnico em PDF, preferencialmente entre 8 e 15 páginas, conforme edital
 - Cobrir:
   - Speedup vs. threads (1, 2, 4, 8, 16)
   - Taxa de compressão por tipo de arquivo
   - Identificação do gargalo no pipeline
   - Overhead do CRC32
+
+Os experimentos de speedup devem ser executáveis por linha de comando, variando o número de threads e, quando necessário, o tamanho do bloco.
 
 ---
 
@@ -162,20 +192,42 @@ Toda resposta técnica deve seguir esse formato quando envolver implementação,
 
 ---
 
-## 🔴 REGRA 10 — Cronograma
+## 🔴 REGRA 10 — Testes Mínimos Obrigatórios
+
+Além dos testes específicos de cada módulo, o projeto deve conter testes automatizados para:
+
+- Heap binário mínimo: inserção, extração em ordem, empates e heap vazio
+- CRC32: buffer vazio, entrada conhecida e alteração de byte
+- Escrita/leitura de bits: sequências que não terminam em múltiplos de 8 bits
+- Huffman: construção da árvore, geração da tabela de códigos, serialização e desserialização
+- Arquivo vazio
+- Arquivo com um único byte
+- Arquivo com um único símbolo repetido
+- Arquivo contendo todos os 256 valores possíveis de byte
+- Arquivo de texto
+- Arquivo binário pequeno
+- Arquivo aleatório
+- Roundtrip byte a byte: `czip` seguido de `cunzip` e comparação com o original
+- Corrupção manual de bloco/payload: erro detectado e demais blocos preservados
+- Corrupção da árvore serializada ou metadados do bloco: erro reportado sem crash
+- Execução com 1, 2, 4, 8 e 16 threads, quando disponível no ambiente
+
+---
+
+## 🔴 REGRA 11 — Cronograma
 
 | Entrega | Escopo | Peso |
 |---------|--------|------|
 | **E1 — Fundação** | Structs, heap, blocos, CRC32, testes unitários | 15% |
 | **E2 — Núcleo de ED** | Árvore de Huffman, czip/cunzip single-thread | 40% |
 | **E3 — Núcleo de SO** | Pipeline de threads, filas com condvars, reordenação | 10% |
-| **E4 — Robustez** | Teste de fogo (1GB), relatório, gráficos, vídeo | 35% |
+| **E4 — Robustez** | Teste de fogo (1GB), relatório, gráficos | 35% |
 
 **Apresentação final: 02/07/2026**
 
 ---
 
-## 🔴 REGRA 11 — Critérios de Avaliação
+## 🔴 REGRA 12 — Critérios de Avaliação
 
 | Critério | Peso |
 |----------|------|
