@@ -23,10 +23,12 @@ ifeq ($(OS),Windows_NT)
     PTHREAD =
     RM      = del /Q /F
     EXE     = .exe
+    RUN     =
 else
     PTHREAD = -pthread
     RM      = rm -f
     EXE     =
+    RUN     = ./
 endif
 
 CFLAGS  = $(CSTD) $(WARN) $(OPT) $(INCLUDE) $(PTHREAD)
@@ -39,7 +41,7 @@ COMMON_SRCS =
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test stress clean asan tsan valgrind help
+.PHONY: all test test_heap stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -54,11 +56,14 @@ cunzip: $(CUNZIP_SRCS)
 
 # ----------------------------------------------------------------------------
 # Testes unitarios
-# Cada modulo adicionara aqui a compilacao e execucao do seu teste
-# (a partir do Modulo 1 - heap binario).
+# Cada modulo adiciona aqui a compilacao e execucao do seu teste.
+#   Modulo 1 - heap binario (test_heap)
 # ----------------------------------------------------------------------------
-test:
-	@echo Nenhum teste unitario implementado ainda - ver Modulo 1.
+test: test_heap
+
+test_heap: tests/test_heap.c src/heap.c
+	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
+	$(RUN)test_heap$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)

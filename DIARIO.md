@@ -158,3 +158,35 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 > - asan/tsan/valgrind existem desde o início, mas só rodam em Linux (MinGW não os suporta);
 >   a validação de vazamentos (−10%) e data races (−15%) será feita em ambiente Linux.
 > - Binários czip/cunzip iniciam como esqueletos; a lógica entra nos módulos seguintes.
+
+### 2026-06-22 — Módulo 1: heap binário mínimo (fila de prioridade do Huffman)
+
+**Prompt do aluno:**
+> Seguir para o Módulo 1, no mesmo formato do Módulo 0: implementar o heap binário
+> mínimo (fila de prioridade) usado pela árvore de Huffman, com testes.
+
+**Resposta da IA (resumo):**
+> Implementou o min-heap binário em include/heap.h, src/heap.c e tests/test_heap.c.
+> API: heap_create/heap_push/heap_pop_min/heap_destroy (+ heap_size/heap_is_empty).
+> Ordenação por frequência (min-heap), com desempate determinístico pela ordem de
+> inserção. Heap cresce sozinho (realloc dobrando a capacidade) e a API é segura
+> contra NULL. O teste cobre os casos da REGRA 10: inserção fora de ordem → saída
+> crescente, pop em heap vazio/NULL sem travar e empates em ordem de inserção
+> (53 verificações, 0 falhas). Atualizou o alvo `test` do Makefile para compilar e
+> rodar test_heap (com prefixo de execução portável Windows/Linux). Compila limpo
+> com gcc -std=c11 -Wall -Wextra -Werror (0 warnings).
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado. (O alvo `clean` ainda imprime erro de `del` quando o
+> mingw32-make é chamado de dentro do bash, mas é o comportamento já conhecido do
+> Módulo 0, ignorado pelo `-` na receita e inofensivo no cmd/PowerShell.)
+
+**Decisões de projeto tomadas:**
+> - Desempate por ORDEM DE INSERÇÃO (seq monotônico atribuído no push), e não por
+>   "menor byte": é totalmente determinístico/reproduzível e funciona também para
+>   nós internos da árvore (que não têm um único byte). Coerente com modularizacao.md.
+> - HeapItem guarda `frequency` (chave) e um `payload` opaco (void*) que, a partir
+>   do Módulo 3, apontará para o nó da árvore de Huffman — mantém o heap desacoplado.
+> - MinHeap é tipo opaco (struct na .c) e cresce dinamicamente; API NULL-safe.
+> - heap.c ainda não entra em COMMON_SRCS (só será linkado ao czip/cunzip quando o
+>   Huffman, no Módulo 3, passar a usá-lo).
