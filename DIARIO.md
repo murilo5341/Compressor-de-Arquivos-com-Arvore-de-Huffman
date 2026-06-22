@@ -190,3 +190,40 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 > - MinHeap é tipo opaco (struct na .c) e cresce dinamicamente; API NULL-safe.
 > - heap.c ainda não entra em COMMON_SRCS (só será linkado ao czip/cunzip quando o
 >   Huffman, no Módulo 3, passar a usá-lo).
+
+### 2026-06-22 — Módulo 2: CRC32 por bloco (detecção de corrupção)
+
+**Prompt do aluno:**
+> Vamos para a próxima implementação do módulo 02, seguindo o mesmo prompt que foi
+> dado para a realização do módulo 00 e 01. Siga os passos realizados no claudeSession3.
+
+**Resposta da IA (resumo):**
+> Implementou o CRC32 por bloco em include/crc32.h, src/crc32.c e tests/test_crc32.c.
+> Antes de codificar, documentou a POLÍTICA de CRC32 (REGRA 5) no topo do .h e neste
+> diário. API: crc32_buffer (cálculo de uma vez) e a tríade incremental
+> crc32_init/crc32_update/crc32_finalize (para acumular um bloco em pedaços). Algoritmo
+> table-driven (tabela de 256 entradas, construída sob demanda na 1ª chamada) com a
+> variante CRC-32/ISO-HDLC (polinômio refletido 0xEDB88320, init/xorout 0xFFFFFFFF),
+> igual ao zlib/gzip. A API é segura contra NULL. O teste cobre os casos da REGRA 10:
+> buffer vazio (== 0), valores conhecidos fixos (CRC32("123456789")==0xCBF43926 e a
+> frase do raposo ==0x414FA339), mudança do CRC ao alterar 1 byte, e equivalência entre
+> o cálculo de uma vez e o incremental (7 verificações, 0 falhas). Atualizou o alvo
+> `test` do Makefile para também compilar e rodar test_crc32 (e adicionou test_crc32 ao
+> .PHONY). Compila limpo com gcc -std=c11 -Wall -Wextra -Werror (0 warnings). Criou a
+> doc técnica docs/modulos/modulo_02.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - POLÍTICA DE CRC32 (REGRA 5): calcular sobre o CONTEÚDO ORIGINAL (descomprimido) de
+>   cada bloco; a compressão grava o valor no cabeçalho e a descompressão recalcula sobre
+>   o bloco restaurado e compara. Coerente com modularizacao.md (Módulo 2).
+> - Variante CRC-32/ISO-HDLC (zlib/gzip): poly refletido 0xEDB88320, init/xorout
+>   0xFFFFFFFF — padrão de fato, com vetores de teste públicos verificáveis.
+> - Implementação table-driven com lazy init da tabela: um lookup por byte, rápido o
+>   bastante para o teste de fogo de 1 GB (Módulo 17).
+> - API incremental (init/update/finalize) além do atalho crc32_buffer, para permitir
+>   acumular o CRC32 de um bloco lido em pedaços.
+> - crc32.c ainda não entra em COMMON_SRCS (só será linkado ao czip/cunzip quando o
+>   formato .cz, no Módulo 9, passar a gravar/verificar o checksum).

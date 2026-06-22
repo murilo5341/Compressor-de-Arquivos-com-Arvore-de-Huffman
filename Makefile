@@ -41,7 +41,7 @@ COMMON_SRCS =
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -58,12 +58,17 @@ cunzip: $(CUNZIP_SRCS)
 # Testes unitarios
 # Cada modulo adiciona aqui a compilacao e execucao do seu teste.
 #   Modulo 1 - heap binario (test_heap)
+#   Modulo 2 - CRC32 por bloco (test_crc32)
 # ----------------------------------------------------------------------------
-test: test_heap
+test: test_heap test_crc32
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
 	$(RUN)test_heap$(EXE)
+
+test_crc32: tests/test_crc32.c src/crc32.c
+	$(CC) $(CFLAGS) tests/test_crc32.c src/crc32.c -o test_crc32$(EXE) $(LDFLAGS)
+	$(RUN)test_crc32$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)
