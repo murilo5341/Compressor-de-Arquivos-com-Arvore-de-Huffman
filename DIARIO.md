@@ -132,3 +132,29 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 
 **Erros da IA / Correções necessárias:**
 > Nenhum erro identificado (reestruturação documental).
+
+### 2026-06-22 — Módulo 0: estrutura inicial do projeto e Makefile
+
+**Prompt do aluno:**
+> Com base em RULES.md, context.md, implementacao.md e modularizacao.md, começar a
+> implementar os módulos. Primeiro o Módulo 0, responsável pela estrutura do projeto.
+
+**Resposta da IA (resumo):**
+> Criou a estrutura do Módulo 0: pastas include/, src/, tests/, scripts/ (com .gitkeep nas
+> vazias); esqueletos src/main_czip.c e src/main_cunzip.c que validam argumentos e imprimem
+> uso; Makefile com os alvos obrigatórios all/test/stress/clean mais asan/tsan/valgrind;
+> README.md expandido com estrutura, instruções de build e documentação dos sanitizers/Valgrind.
+> Compila limpo com gcc -std=c11 -Wall -Wextra -Werror (0 warnings); make all/clean validados.
+
+**Erros da IA / Correções necessárias:**
+> 1) O .gitignore estava ignorando o próprio Makefile (entregável obrigatório); foi reescrito
+>    para ignorar apenas artefatos de build (binários, *.o, *.cz, results/, .claude/).
+> 2) O MinGW local (GCC 6.3.0, modelo de threads win32) não possui libpthread, então `-pthread`
+>    quebrava o build no Windows; o Makefile passou a detectar o SO e só usa -pthread no Linux.
+
+**Decisões de projeto tomadas:**
+> - Cabeçalhos (.h) ficam em include/ e fontes (.c) em src/, conforme modularizacao.md.
+> - Makefile multiplataforma: detecta Windows_NT para ajustar -pthread, rm/del e extensão .exe.
+> - asan/tsan/valgrind existem desde o início, mas só rodam em Linux (MinGW não os suporta);
+>   a validação de vazamentos (−10%) e data races (−15%) será feita em ambiente Linux.
+> - Binários czip/cunzip iniciam como esqueletos; a lógica entra nos módulos seguintes.

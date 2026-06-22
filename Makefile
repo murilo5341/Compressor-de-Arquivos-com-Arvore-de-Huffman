@@ -1,0 +1,107 @@
+# ============================================================================
+# Makefile - Compressor de Arquivos com Arvore de Huffman (Tema 11)
+#
+# Compilacao obrigatoria (RULES REGRA 2): gcc -std=c11 -Wall -Wextra -Werror
+# Tolerancia zero a warnings (0 warnings).
+#
+# Alvos principais (RULES REGRA 4): all, test, stress, clean
+# Alvos extras de validacao (Modulo 0): asan, tsan, valgrind
+# ============================================================================
+
+CC      = gcc
+CSTD    = -std=c11
+WARN    = -Wall -Wextra -Werror
+OPT     = -O2
+INCLUDE = -Iinclude
+
+# --- Deteccao de plataforma ---------------------------------------------------
+# No Linux (ambiente oficial de validacao/correcao) as threads usam -pthread.
+# O MinGW no Windows usa o modelo de threads win32 e NAO possui libpthread,
+# portanto o -pthread e omitido localmente. A concorrencia (E3) e os sanitizers
+# (asan/tsan) e o Valgrind devem ser validados em ambiente Linux.
+ifeq ($(OS),Windows_NT)
+    PTHREAD =
+    RM      = del /Q /F
+    EXE     = .exe
+else
+    PTHREAD = -pthread
+    RM      = rm -f
+    EXE     =
+endif
+
+CFLAGS  = $(CSTD) $(WARN) $(OPT) $(INCLUDE) $(PTHREAD)
+LDFLAGS = $(PTHREAD)
+
+# Modulos de codigo compartilhados entre czip e cunzip.
+# Serao preenchidos conforme os modulos avancam (heap.c, crc32.c, huffman.c, ...).
+COMMON_SRCS =
+
+CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
+CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
+
+.PHONY: all test stress clean asan tsan valgrind help
+
+# ----------------------------------------------------------------------------
+# Compilacao principal
+# ----------------------------------------------------------------------------
+all: czip cunzip
+
+czip: $(CZIP_SRCS)
+	$(CC) $(CFLAGS) $(CZIP_SRCS) -o czip$(EXE) $(LDFLAGS)
+
+cunzip: $(CUNZIP_SRCS)
+	$(CC) $(CFLAGS) $(CUNZIP_SRCS) -o cunzip$(EXE) $(LDFLAGS)
+
+# ----------------------------------------------------------------------------
+# Testes unitarios
+# Cada modulo adicionara aqui a compilacao e execucao do seu teste
+# (a partir do Modulo 1 - heap binario).
+# ----------------------------------------------------------------------------
+test:
+	@echo Nenhum teste unitario implementado ainda - ver Modulo 1.
+
+# ----------------------------------------------------------------------------
+# Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)
+# ----------------------------------------------------------------------------
+stress: all
+	@echo Stress test sera implementado a partir do Modulo 17.
+
+# ----------------------------------------------------------------------------
+# AddressSanitizer - detecta vazamentos e acesso indevido de memoria (-10%).
+# ThreadSanitizer - detecta data races no pipeline concorrente (-15%).
+#
+# OBS: requerem Linux com gcc/clang que suportem -fsanitize.
+#      O MinGW no Windows NAO suporta estes sanitizers; rode em ambiente Linux.
+# As variaveis target-specific abaixo propagam para o pre-requisito (all).
+# ----------------------------------------------------------------------------
+asan: CFLAGS  += -fsanitize=address -g -fno-omit-frame-pointer
+asan: LDFLAGS += -fsanitize=address
+asan: clean all
+	@echo Build com AddressSanitizer concluido.
+
+tsan: CFLAGS  += -fsanitize=thread -g -fno-omit-frame-pointer
+tsan: LDFLAGS += -fsanitize=thread
+tsan: clean all
+	@echo Build com ThreadSanitizer concluido.
+
+# ----------------------------------------------------------------------------
+# Valgrind - alternativa para validar vazamentos de memoria (requer Linux).
+# Uso apos compilar:
+#   valgrind --leak-check=full --error-exitcode=1 ./czip ENTRADA SAIDA.cz
+# ----------------------------------------------------------------------------
+valgrind: all
+	@echo Use: valgrind --leak-check=full --error-exitcode=1 ./czip ENTRADA SAIDA.cz
+
+# ----------------------------------------------------------------------------
+clean:
+	-$(RM) czip$(EXE) cunzip$(EXE) test_* *.o saida.cz restaurado*
+
+help:
+	@echo Alvos disponiveis:
+	@echo   all       - compila czip e cunzip
+	@echo   test      - compila e roda os testes unitarios
+	@echo   stress    - roda o teste de stress/carga
+	@echo   asan      - build com AddressSanitizer (Linux)
+	@echo   tsan      - build com ThreadSanitizer (Linux)
+	@echo   valgrind  - instrucoes de uso do Valgrind (Linux)
+	@echo   clean     - remove binarios e artefatos
