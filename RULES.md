@@ -253,3 +253,8 @@ Ao concluir cada módulo com sucesso, faça:
   git add arquivos-relacionados
   git commit -m "Título do módulo" -m "Descrição detalhada do que foi feito"
   git push origin branch-atual
+
+## REGRA 14 — Exportar terminal para TerminalSession AUTOMATICAMENTE
+
+Ao concluir cada módulo com sucesso, exporte o terminal para TerminalSession:
+Utilize /export e cole ou adicione o conteúdo no arquivo TerminalSession/claudeSessionX.md
