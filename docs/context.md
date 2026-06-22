@@ -67,6 +67,8 @@ Cada bloco deve ser independente para permitir paralelismo real. Isso tambem fac
 
 O arquivo `.cz` deve conter informacoes suficientes para que `cunzip` consiga reconstruir o arquivo original sem depender da memoria ou do processo que gerou a compressao.
 
+Decisao de projeto (nao exigencia do edital): o edital nao define extensao de arquivo nem magic number. A extensao `.cz` e o magic number `CZHF` sao escolhas da equipe e podem ser alteradas, desde que documentadas e justificaveis na defesa oral. O edital exige apenas que cada bloco carregue sua arvore de Huffman serializada no cabecalho.
+
 Um formato razoavel deve conter:
 
 - Assinatura/magic number do arquivo, por exemplo `CZHF`.

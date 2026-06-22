@@ -101,6 +101,12 @@ O projeto é estritamente o **Tema 11 — Compressor de Arquivos com Árvore de 
 
 ### Formato obrigatório do arquivo `.cz`:
 
+> **Decisão de projeto (não exigência do edital):** o edital não define extensão de arquivo nem
+> magic number. A extensão `.cz` e o magic number `CZHF` são **escolhas da equipe**. O que o edital
+> de fato exige é que o cabeçalho de cada bloco contenha a árvore de Huffman serializada, para que
+> `cunzip` reconstrua a árvore e descomprima sem depender do processo original. Os nomes podem ser
+> alterados desde que documentados — devemos saber justificá-los na defesa oral.
+
 O arquivo compactado deve conter metadados suficientes para que `cunzip` consiga reconstruir, validar, pular blocos corrompidos e restaurar os demais blocos sem depender da memória do processo que compactou.
 
 #### Cabeçalho global mínimo:
@@ -127,7 +133,8 @@ O arquivo compactado deve conter metadados suficientes para que `cunzip` consiga
 
 ### Teste de fogo:
 - Arquivo de **1 GB** comprimido com sucesso
-- **Caso o speedup não seja linear**, o relatório deve explicar experimentalmente o gargalo: leitura, escrita, reordenação, CRC32 ou custo da compressão.
+- **Demonstrar speedup quase linear** até o número de núcleos disponíveis (meta literal do edital). Esta é a obrigação primária do teste de fogo, não pode ser substituída pela análise de gargalo.
+- **Complementarmente**, caso o speedup observado não seja linear, o relatório deve explicar experimentalmente o gargalo: leitura, escrita, reordenação, CRC32 ou custo da compressão.
 - Identificar quando o **estágio de escrita serializa** o pipeline
 - **Bloco corrompido** manualmente → detectado → demais blocos OK
 
