@@ -244,3 +244,12 @@ Além dos testes específicos de cada módulo, o projeto deve conter testes auto
 | Relatório experimental (gráficos, confronto teoria × prática) | 5% |
 | **Defesa oral individual** | **50%** |
 | Engenharia (Makefile, testes, organização, commits) | 5% |
+
+## REGRA 13 — Insercao de Commit e Push
+
+Ao concluir cada módulo com sucesso, faça:
+  git status
+  git diff
+  git add arquivos-relacionados
+  git commit -m "Título do módulo" -m "Descrição detalhada do que foi feito"
+  git push origin branch-atual
