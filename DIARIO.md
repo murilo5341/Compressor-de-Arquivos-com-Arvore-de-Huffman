@@ -26,3 +26,22 @@
 > - Rules são 11 regras derivadas diretamente das seções 2, 3, 4, 5 e 6 do edital
 
 ---
+
+### 2026-06-21 — Criacao dos documentos de contexto e implementacao
+
+**Prompt do aluno:**
+> Pegue todo o contexto desse diretório, e me mande oq voce interpretou do meu tema. O meu tema é o 11, Compressor de Arquivos Huffman. Ao final, crie um documento dentro da pasta docs, entitulado context.md. Nesse arquivo deve possuir tudo aquilo que voce capturou do que se trata  o tema, qual a proposta da atividade,dificuldade de implementacao, tempo estimado de conclusao utilizando IA e um outro arquivo sobre implementação (Como implementar). Crie e documente de acordo com que foi dito no RULES.md, documente no DIARIO.md a minha entrada de prompt e o restante que é pedido
+
+**Resposta da IA (resumo):**
+> A IA analisou o contexto ja levantado do repositorio, seguiu as regras definidas em RULES.md e criou dois documentos dentro de docs/: `context.md`, com a explicacao completa do Tema 11, proposta da atividade, dificuldade, tempo estimado com IA, riscos e estado atual do repositorio; e `implementacao.md`, com um guia incremental de como implementar o compressor Huffman, incluindo heap, Huffman, bit I/O, serializacao, formato .cz, CRC32, czip/cunzip, pipeline com threads, testes e relatorio experimental. Tambem atualizou este DIARIO.md com a entrada da interacao.
+
+**Erros da IA / Correcoes necessarias:**
+> Nenhum erro identificado nesta interacao. Foram criados apenas documentos de apoio, sem implementacao de codigo C.
+
+**Decisoes de projeto tomadas:**
+> - Separar a documentacao em `docs/context.md` para entendimento do tema e `docs/implementacao.md` para orientar a construcao incremental.
+> - Registrar que o repositorio ainda nao possui `src/` nem `tests/`, embora o `Makefile` ja referencie esses diretorios.
+> - Recomendar implementacao primeiro single-thread e somente depois evoluir para pipeline concorrente.
+> - Documentar um formato inicial possivel para o arquivo `.cz`, com cabecalho global e metadados por bloco.
+
+---

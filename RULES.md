@@ -153,7 +153,6 @@ Toda resposta técnica deve seguir esse formato quando envolver implementação,
 ## 🔴 REGRA 9 — Proibições
 
 - ❌ NÃO gerar o projeto inteiro de uma vez
-- ❌ NÃO pular etapas do workflow (E1 → E2 → E3 → E4)
 - ❌ NÃO usar bibliotecas externas além da libc e pthreads
 - ❌ NÃO deixar informações essenciais apenas em memória.
   No Tema 11, é permitido montar em RAM o heap binário, a árvore de Huffman e a tabela de códigos de cada bloco durante a compressão. Porém, o arquivo `.cz` deve armazenar no cabeçalho de cada bloco a árvore serializada, para que o `cunzip` consiga reconstruir a árvore e descomprimir o arquivo sem depender do processo original.
