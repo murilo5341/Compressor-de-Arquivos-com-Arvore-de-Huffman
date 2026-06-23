@@ -41,7 +41,7 @@ COMMON_SRCS =
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -62,8 +62,10 @@ cunzip: $(CUNZIP_SRCS)
 #   Modulo 3 - arvore de Huffman (test_huffman_tree, linka huffman.c + heap.c)
 #   Modulo 4 - tabela de codigos (test_huffman_codes, linka huffman.c + heap.c)
 #   Modulo 5 - escrita/leitura bit a bit (test_bitio, linka bitio.c)
+#   Modulo 6 - compressao de bloco (test_block_compress, linka block.c +
+#              huffman.c + heap.c + bitio.c)
 # ----------------------------------------------------------------------------
-test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio
+test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
@@ -84,6 +86,10 @@ test_huffman_codes: tests/test_huffman_codes.c src/huffman.c src/heap.c
 test_bitio: tests/test_bitio.c src/bitio.c
 	$(CC) $(CFLAGS) tests/test_bitio.c src/bitio.c -o test_bitio$(EXE) $(LDFLAGS)
 	$(RUN)test_bitio$(EXE)
+
+test_block_compress: tests/test_block_compress.c src/block.c src/huffman.c src/heap.c src/bitio.c
+	$(CC) $(CFLAGS) tests/test_block_compress.c src/block.c src/huffman.c src/heap.c src/bitio.c -o test_block_compress$(EXE) $(LDFLAGS)
+	$(RUN)test_block_compress$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)

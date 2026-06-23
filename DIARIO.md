@@ -372,3 +372,54 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   retornando false, sem corromper o buffer parcial.
 > - bitio.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip quando a
 >   compressão de bloco (Módulo 6) passar a usá-lo. Por ora, apenas no teste.
+
+### 2026-06-22 — Módulo 6: compressão de um bloco em memória
+
+**Prompt do aluno:**
+> Implementar o Módulo 6 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou a compressão de um bloco em memória em include/block.h, src/block.c
+> e tests/test_block_compress.c. A função block_compress(input, len, out) amarra os
+> módulos anteriores no pipeline clássico de Huffman: conta frequências (Mód. 3),
+> monta a árvore (Mód. 3), gera a tabela de códigos (Mód. 4) e emite o código de
+> cada byte bit a bit com o BitWriter (Mód. 4/5), fechando o último byte parcial
+> com flush. O resultado é um BlockCompressed { tree, data, compressed_size,
+> original_size } — a struct é dona da árvore e do payload, liberados juntos por
+> block_compressed_free(). Tratou os casos de borda: bloco vazio (len 0) retorna
+> resultado válido vazio (tree NULL); bloco de um único byte distinto gera folha
+> única com 1 bit por byte; falta de memória libera tudo e zera *out. Como o
+> descompressor formal só chega no Módulo 8, o teste inclui um decodificador manual
+> mínimo que desce a árvore bit a bit até reconstruir original_size bytes, provando
+> que o payload é válido. O teste cobre a modularizacao.md/REGRA 10: bloco conhecido
+> ("ABRACADABRA") com roundtrip exato, distribuição enviesada que realmente REDUZ o
+> tamanho, folha única (50 bytes -> 7 bytes), bloco vazio, todos os 256 valores de
+> byte com roundtrip e bordas NULL — 30 verificações, 0 falhas. Atualizou o Makefile
+> (alvo test_block_compress linkando block.c + huffman.c + heap.c + bitio.c, .PHONY
+> e alvo test). Compila limpo com gcc -std=c11 -Wall -Wextra -Werror (0 warnings);
+> suíte completa (heap, CRC32, árvore, códigos, bitio, bloco) passa. Criou a doc
+> técnica docs/modulos/modulo_06.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - DOAÇÃO DO BUFFER (sem cópia): no caminho de sucesso, o ponteiro w.buffer do
+>   BitWriter é doado direto para out->data, em vez de copiar para um buffer novo;
+>   por isso block.c NÃO chama bit_writer_free no sucesso — a posse passa para o
+>   BlockCompressed (liberado por block_compressed_free). Evita copiar o payload
+>   inteiro (relevante no teste de fogo de 1 GB). Nos caminhos de erro, o free é
+>   chamado normalmente.
+> - BlockCompressed é DONO da árvore e do payload; block_compressed_free libera os
+>   dois e zera a struct (NULL-safe).
+> - BLOCO VAZIO retorna resultado válido vazio (tree NULL, sem payload); a política
+>   de arquivo vazio fica para o czip (Módulo 10).
+> - FOLHA ÚNICA gera 1 bit por byte (código "0" do Módulo 4); a parada da
+>   decodificação é por original_size, ignorando o padding final (contrato Mód. 5).
+> - Teste com DECODIFICADOR MANUAL (desce a árvore bit a bit) para validar o
+>   roundtrip antes de o Módulo 8 existir.
+> - block.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip a
+>   partir do Módulo 10. Por ora, apenas no teste.
