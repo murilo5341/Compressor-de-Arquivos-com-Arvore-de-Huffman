@@ -67,8 +67,9 @@ válida para o relatório é feita em WSL/Linux. Registrar CPU, núcleos (`nproc
 
 - Por que medir vários **tipos** de arquivo? A taxa de Huffman depende da
   distribuição: texto/repetido comprimem muito, aleatório ~0% (pior caso).
-- Por que a **mediana** de repetições (no Módulo 18)? Reduz ruído de medição
-  (cache, escalonador) sem mascarar a tendência.
+- Por que o **menor tempo** (melhor de N) das repetições (no Módulo 18)?
+  Interferência do SO só adiciona tempo; o mínimo é a estimativa mais limpa do
+  custo intrínseco. Reduz ruído sem mascarar a tendência.
 - Onde o pipeline **satura**? A escritora reordenadora é sequencial por natureza;
   acima de certo nº de threads ela vira o gargalo (analisado no relatório).
 - Por que o roundtrip dentro do bench? Garante que a medição é de uma compressão

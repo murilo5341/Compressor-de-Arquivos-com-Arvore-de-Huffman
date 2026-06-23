@@ -2,16 +2,17 @@
 
 > Esqueleto do relatório técnico (8–15 páginas, RULES REGRA 7). O PDF final é
 > produzido manualmente pela equipe; este arquivo organiza as seções e aponta de
-> onde sai cada gráfico/dado. Os gráficos são gerados por `scripts/plot_results.py`
-> a partir de `results/resultados.csv` (coletado por `scripts/run_bench.sh`).
+> onde sai cada gráfico/dado. Os gráficos são gerados por `scripts/plot_results.sh`
+> (gnuplot) a partir de `results/resultados.csv` (coletado por `scripts/run_bench.sh`).
 
 ## Como gerar os dados e os gráficos
 
 ```sh
 # Em Linux/WSL (pipeline concorrente exige pthreads):
+sudo apt install gnuplot    # uma vez
 make all
 make stress                 # gen_inputs + run_bench -> results/resultados.csv
-python scripts/plot_results.py   # -> results/graphs/*.png
+make graficos               # plot_results.sh (gnuplot) -> results/graphs/*.png
 ```
 
 Para o teste de fogo de 1 GB explícito:
@@ -19,7 +20,7 @@ Para o teste de fogo de 1 GB explícito:
 ```sh
 sh scripts/gen_inputs.sh inputs 33554432 1073741824   # bench 32MiB + fogo 1GiB
 THREADS="1 2 4 8 16" sh scripts/run_bench.sh inputs results/resultados.csv
-python scripts/plot_results.py
+sh scripts/plot_results.sh results/resultados.csv results/graphs
 ```
 
 ## Seções do relatório

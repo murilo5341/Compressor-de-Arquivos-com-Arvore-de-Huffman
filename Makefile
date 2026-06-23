@@ -163,7 +163,7 @@ test_pipeline: all tests/test_pipeline.sh
 #            entrada e PULA o arquivo de 1 GiB (FIRE_SIZE=0) para nao demorar; o
 #            teste de fogo de 1 GB completo roda passando FIRE_SIZE=1073741824.
 # bench    - atalho equivalente ao stress (nome alternativo).
-# graficos - gera os PNGs do relatorio a partir do CSV (requer matplotlib).
+# graficos - gera os PNGs do relatorio a partir do CSV (requer gnuplot).
 #
 # Variaveis (override no comando): BENCH_SIZE, FIRE_SIZE, THREADS, BLOCK, REPS.
 # Ex.: make stress FIRE_SIZE=1073741824 THREADS="1 2 4 8 16"
@@ -182,7 +182,7 @@ stress: all
 bench: stress
 
 graficos:
-	python scripts/plot_results.py results/resultados.csv results/graphs
+	sh scripts/plot_results.sh results/resultados.csv results/graphs
 
 # ----------------------------------------------------------------------------
 # AddressSanitizer - detecta vazamentos e acesso indevido de memoria (-10%).
@@ -220,7 +220,7 @@ help:
 	@echo   test      - compila e roda os testes unitarios
 	@echo   stress    - gera entradas e roda o benchmark (results/resultados.csv)
 	@echo   bench     - atalho para stress
-	@echo   graficos  - gera os PNGs do relatorio (requer matplotlib)
+	@echo   graficos  - gera os PNGs do relatorio (requer gnuplot)
 	@echo   asan      - build com AddressSanitizer (Linux)
 	@echo   tsan      - build com ThreadSanitizer (Linux)
 	@echo   valgrind  - instrucoes de uso do Valgrind (Linux)

@@ -19,7 +19,7 @@
 # Variaveis de ambiente (com padrao):
 #   THREADS="1 2 4 8 16"   lista de contagens de threads a medir
 #   BLOCK=1048576          tamanho de bloco (--block-size), em bytes (1 MiB)
-#   REPS=3                 repeticoes por ponto (o plot usa a mediana)
+#   REPS=3                 repeticoes por ponto (o plot usa o MENOR tempo = melhor de N)
 #
 # IMPORTANTE (RULES REGRA 7 - dados reais): o speedup so aparece quando o czip
 # roda CONCORRENTE, o que exige o pipeline com pthreads (Linux/WSL). No Windows

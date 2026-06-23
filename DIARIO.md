@@ -1046,3 +1046,54 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   controla o arquivo de 1 GiB do teste de fogo (padrão 0 = pula, para rapidez).
 > - ROUNDTRIP DENTRO DO BENCH (cunzip + cmp, fora do tempo medido): garante que a
 >   medição é de uma compressão correta, não de uma saída corrompida.
+
+### 2026-06-23 — Módulo 18 (revisão): troca de matplotlib/Python por gnuplot
+
+**Prompt do aluno:**
+> "No trabalho.txt está bem explícito que é para usar linguagem C, esse Python não
+> pode." / "Mas qual é melhor, o em Python ou esse gnuplot?" / "Faça a substituição
+> que foi sugerida por você."
+
+**Resposta da IA (resumo):**
+> A IA esclareceu o escopo do "C obrigatório": o edital (trabalho.txt, Seção 2)
+> exige C para o SISTEMA (czip/cunzip + estruturas de dados + mecanismos de SO; os
+> testes unitários test_*.c também são C), mas lista "scripts de geração dos
+> gráficos do relatório" como artefato SEPARADO, sem exigir que sejam em C — e a
+> RULES REGRA 7 já permitia "gnuplot, matplotlib, etc.". Portanto Python para
+> gráfico não era proibido, mas, a pedido do aluno e por ser politicamente mais
+> seguro/editável na defesa, substituiu o plot por gnuplot. Removeu
+> scripts/plot_results.py; criou scripts/plot_results.sh (agrega o CSV com awk e
+> chama o gnuplot) e scripts/plot_results.gp (desenha os 4 PNGs: speedup com reta
+> ideal, tempo, throughput, taxa por tipo). A AGREGAÇÃO mudou de MEDIANA para MENOR
+> TEMPO (melhor de N): o awk do Ubuntu é o mawk, que não tem asort, então mediana
+> exigiria ordenar; o mínimo é mawk-safe, mantém o throughput consistente (derivado
+> do mesmo tempo) e é prática padrão de benchmark (interferência do SO só adiciona
+> tempo). Atualizou Makefile (graficos chama o .sh; help/comentários dizem gnuplot),
+> .gitignore (removeu o bloco __pycache__/*.pyc, já que não há mais Python),
+> run_bench.sh e modulo_17.md (mediana → menor tempo), modulo_18.md (reescrito para
+> gnuplot), relatorio/esboco.md e modularizacao.md (M18 aponta plot_results.sh/.gp).
+> Validação no Windows (sem gnuplot): a agregação awk foi conferida com CSV
+> sintético (tmin, speedup e throughput corretos) e com o CSV real do run_bench via
+> um gnuplot FALSO no PATH, provando que o wrapper real gera series_<i>.dat,
+> manifestos e taxa.dat e chama o gnuplot com work/outdir certos; sem gnuplot o
+> wrapper sai com código 2 (mensagem apt install), sem CSV código 1, e o caminho de
+> sucesso lista os 4 PNGs e sai 0. O render real dos PNGs será feito no WSL
+> (apt install gnuplot).
+
+**Erros da IA / Correções necessárias:**
+> O loop final de listagem dos PNGs usava `[ -f x ] && echo`, que sob `set -e`
+> fazia o script sair com código 1 quando o PNG não existia (visto no teste com o
+> gnuplot falso que não gerava arquivo). Corrigido para `if [ -f x ]; then echo`,
+> que não dispara o set -e. Fora isso, nenhum erro.
+
+**Decisões de projeto tomadas:**
+> - GNUPLOT no lugar de matplotlib/Python: o sistema avaliado é 100% C; o gráfico é
+>   artefato separado (edital) e gnuplot é o clássico de SO, editável ao vivo na
+>   defesa, sem trazer stack Python. (Esclarece a dúvida do aluno sobre "C only".)
+> - AGREGAÇÃO = MENOR TEMPO (melhor de N), não mediana: mawk não tem asort; o mínimo
+>   é a estimativa mais limpa do custo intrínseco (SO só adiciona tempo) e mantém o
+>   throughput consistente (derivado do mesmo tempo).
+> - SEPARAÇÃO awk (agregação) × gnuplot (desenho): mantém o gnuplot simples e a
+>   matemática num só lugar; o wrapper passa work/outdir via `gnuplot -e`.
+> - SCRIPTS DE GRÁFICO/BENCH EM SHELL+GNUPLOT são harness, não "linguagem do
+>   sistema": o requisito C do edital recai sobre czip/cunzip e a bateria test_*.c.

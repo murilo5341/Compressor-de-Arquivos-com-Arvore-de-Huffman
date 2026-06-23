@@ -1,15 +1,17 @@
 # Módulo 18 — Gráficos e relatório
 
-Resumo: `scripts/plot_results.py` lê o `results/resultados.csv` (Módulo 17) e gera
-os gráficos do relatório (speedup, tempo, throughput, taxa por tipo); `relatorio/`
-guarda o esqueleto do relatório técnico.
+Resumo: `scripts/plot_results.sh` agrega o `results/resultados.csv` (Módulo 17) com
+`awk` e chama o **gnuplot** (`scripts/plot_results.gp`) para gerar os gráficos do
+relatório (speedup, tempo, throughput, taxa por tipo); `relatorio/` guarda o
+esqueleto do relatório técnico.
 
 ## O que faz
 
-- Lê o CSV do benchmark e **agrega** por (arquivo, threads), usando a **mediana**
-  das repetições para reduzir ruído.
-- Deriva o **speedup** = `tempo[1 thread] / tempo[N]` e plota contra a reta ideal.
-- Gera 4 PNGs em `results/graphs/`:
+- O wrapper (`.sh`) lê o CSV do benchmark e **agrega** por (arquivo, threads),
+  usando o **menor tempo** das repetições (melhor de N).
+- Deriva o **speedup** = `tempo[baseline] / tempo[N]` (baseline = menor nº de
+  threads) e escreve arquivos `.dat` intermediários + um manifesto.
+- O gnuplot lê os `.dat` e gera 4 PNGs em `results/graphs/`:
   `speedup_vs_threads.png`, `tempo_vs_threads.png`, `throughput_vs_threads.png`,
   `taxa_por_tipo.png`.
 - `relatorio/esboco.md` organiza as seções do relatório (8–15 páginas) e mapeia de
@@ -17,30 +19,44 @@ guarda o esqueleto do relatório técnico.
 
 ## Por que existe
 
-Fecha a **RULES REGRA 7**: gráficos gerados por **script reproduzível**
-(matplotlib, versionado) a partir de dados reais, confrontando teoria × prática. É
-o material visual da defesa e do relatório.
+Fecha a **RULES REGRA 7**: gráficos por **script reproduzível** (gnuplot,
+versionado) a partir de dados reais, confrontando teoria × prática. É o material
+visual da defesa e do relatório.
+
+## Por que gnuplot (e não Python)
+
+O **sistema** do Tema 11 é em C (czip/cunzip + estruturas de dados + mecanismos de
+SO); o edital (`trabalho.txt`, Seção 2) lista *"scripts de geração dos gráficos do
+relatório"* como artefato **separado** do sistema, e a RULES REGRA 7 permite
+*"gnuplot, matplotlib, etc."*. Escolheu-se **gnuplot**: é a ferramenta clássica de
+curso de SO, não acrescenta stack Python ao projeto, e o script declarativo é fácil
+de **editar ao vivo** na defesa. A agregação usa `awk` (mesma ferramenta do
+`run_bench.sh`), portável e sem dependências.
 
 ## Arquivos
 
 | Arquivo | Papel |
 |---------|-------|
-| `scripts/plot_results.py` | Lê o CSV, agrega e gera os 4 PNGs. |
+| `scripts/plot_results.sh` | Agrega o CSV (awk) e invoca o gnuplot. |
+| `scripts/plot_results.gp` | Script gnuplot que desenha os 4 PNGs. |
 | `relatorio/esboco.md` | Esqueleto do relatório técnico + comandos de geração. |
-| `Makefile` | Alvo `graficos` (chama o `plot_results.py`). |
+| `Makefile` | Alvo `graficos` (chama o wrapper). |
 
-## Estrutura do script
+## Fluxo de dados
 
-Separado em funções testáveis sem matplotlib:
+```text
+results/resultados.csv
+   │  (awk no plot_results.sh: menor tempo por arquivo×threads, speedup, taxa)
+   ▼
+WORK/series_<i>.dat   (threads  tempo_s  throughput_mibs  speedup)  + manifestos
+WORK/taxa.dat         (tipo  taxa_pct)
+   │  (gnuplot -e "work=...; outdir=..." plot_results.gp)
+   ▼
+results/graphs/*.png
+```
 
-| Função | O que faz |
-|--------|-----------|
-| `load_rows(csv)` | Lê o CSV (só `csv` da stdlib) e converte os tipos. |
-| `aggregate(rows)` | Mediana de tempo/throughput por (arquivo, threads) + speedup + taxa. |
-| `make_plots(per_file, outdir)` | Gera os 4 PNGs (importa matplotlib só aqui). |
-
-A separação permite validar a **lógica de dados** (parsing, mediana, speedup) mesmo
-sem matplotlib instalado; só `make_plots` exige a dependência.
+A separação **agregação (awk) × desenho (gnuplot)** mantém o gnuplot simples (só
+plota) e deixa a matemática (menor tempo, speedup, throughput) num só lugar testável.
 
 ## Gráficos gerados (RULES REGRA 7)
 
@@ -54,31 +70,37 @@ sem matplotlib instalado; só `make_plots` exige a dependência.
 ## Como usar
 
 ```sh
+sudo apt install gnuplot      # uma vez (no WSL)
 # depois de 'make stress' ter gerado o CSV:
-pip install matplotlib        # uma vez (ou no WSL)
 make graficos                 # -> results/graphs/*.png
 # ou:
-python scripts/plot_results.py results/resultados.csv results/graphs
+sh scripts/plot_results.sh results/resultados.csv results/graphs
 ```
 
-Sem matplotlib o script termina com mensagem clara e código 2 (não quebra o build).
+Sem gnuplot o wrapper termina com mensagem clara e código 2 (não quebra o build);
+sem CSV, código 1.
 
 ## Como explicar na defesa
 
-- Por que a **reta ideal** no gráfico de speedup? É o referencial de speedup linear
-  (N threads → N×); a distância da curva real até ela mostra o overhead/gargalo.
-- Por que **mediana** e não média? É robusta a outliers de medição (um pico de GC
-  do SO não distorce o ponto).
+- Por que a **reta ideal** no gráfico de speedup? É o referencial linear (N threads
+  → N×); a distância da curva real até ela mostra o overhead/gargalo.
+- Por que o **menor tempo** (e não a média)? Interferência do SO só adiciona tempo;
+  o mínimo estima o custo intrínseco. Robusto a outliers de medição.
 - Por que o baseline do speedup é o **menor** nº de threads do CSV? Normaliza por
-  `tempo[1]`; se o CSV começar em 1 thread, é o tempo sequencial de referência.
+  `tempo[base]`; se o CSV começar em 1 thread, é o tempo sequencial de referência.
 - O que o `taxa_por_tipo` ensina? Liga a **teoria de Huffman** (entropia) à prática:
   aleatório ~0% confirma que não há almoço grátis para dados incompressíveis.
+- Como editar um gráfico ao vivo? Abrir `plot_results.gp`, mudar `ylabel`/`title`/
+  faixa e rodar `make graficos` de novo — é só o script declarativo do gnuplot.
 
 ## Decisões de projeto / referências
 
-- **matplotlib** (RULES REGRA 7 permite matplotlib/gnuplot); leitura do CSV só com a
-  stdlib (`csv`) para manter a lógica testável e leve.
-- Backend `Agg` (sem display) → roda em WSL/servidor/CI sem ambiente gráfico.
+- **gnuplot** (RULES REGRA 7) em vez de Python: sistema é C, gráfico é artefato
+  separado; gnuplot não traz stack Python e é editável na defesa.
+- **awk** para a agregação (mawk-safe, sem `asort`): por isso "menor tempo" e não
+  "mediana" (mediana exigiria ordenar, ausente no mawk do Ubuntu).
+- Terminal `pngcairo` (anti-aliasing); `system("cat manifest")` no gnuplot para
+  iterar uma série por arquivo via `plot for`.
 - PNGs em `results/graphs/` (gitignored); são saídas geradas, regeneráveis do CSV.
 - Ver também: `modularizacao.md` (Módulo 18), `RULES.md` (REGRA 7),
   `modulo_17.md` (geração do CSV), `relatorio/esboco.md`.

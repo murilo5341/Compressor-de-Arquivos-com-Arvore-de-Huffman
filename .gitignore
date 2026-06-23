@@ -14,10 +14,6 @@ arquivo_grande.bin
 /results/
 /inputs/
 
-# --- Python (scripts de graficos do relatorio) ---
-__pycache__/
-*.pyc
-
 # --- Config local do Claude Code ---
 .claude/
 

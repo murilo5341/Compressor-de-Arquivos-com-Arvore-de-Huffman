@@ -604,10 +604,10 @@ Objetivo: parte final da entrega.
 
 Arquivos:
 
-scripts/plot_results.py
+scripts/plot_results.sh + scripts/plot_results.gp  (gnuplot; decisao registrada no DIARIO)
 relatorio/
 
-Gráficos (scripts reproduziveis versionados — gnuplot/matplotlib):
+Gráficos (scripts reproduziveis versionados — gnuplot):
 
 speedup por número de threads (1, 2, 4, 8, 16)
 tempo de compressão
