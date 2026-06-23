@@ -476,3 +476,53 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   crash, preparando o salto de bloco corrompido (Módulos 9/11).
 > - tree_serialization.c ainda NÃO entra em COMMON_SRCS — só será linkado ao
 >   czip/cunzip a partir do Módulo 9/10. Por ora, apenas no teste.
+
+### 2026-06-22 — Módulo 8: descompressão de um bloco em memória
+
+**Prompt do aluno:**
+> Implementar o Módulo 8 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou a descompressão de um bloco em include/block.h e src/block.c (caminho
+> inverso do Módulo 6). API: block_decompress(tree, data, data_size, original_size,
+> &out) desce a árvore de Huffman bit a bit (esquerda = 0, direita = 1) com o
+> BitReader (Módulo 5) até alcançar uma folha, emitindo o byte, e repete até
+> produzir original_size bytes — o critério de parada é original_size, ignorando os
+> bits de padding do último byte (contrato do Módulo 5). Devolve em *out um buffer
+> recém-alocado de original_size bytes (chamador libera com free). Tratou os casos
+> de borda: bloco vazio (original_size == 0) → sucesso com *out NULL; folha única →
+> 1 bit por byte emitindo o símbolo da raiz; out NULL → false; tree NULL com
+> original_size > 0 → false; payload truncado / nó interno sem filho → false,
+> libera o buffer parcial e zera *out. A assinatura recebe tree + data + tamanhos
+> (em vez de um BlockCompressed) porque é assim que o cunzip (Módulo 11) terá os
+> dados: árvore vinda da desserialização (Módulo 7) e tamanhos vindos do cabeçalho
+> (Módulo 9). Criou tests/test_block_decompress.c fechando o ROUNDTRIP real
+> (block_compress → block_decompress → memcmp): bloco conhecido (ABRACADABRA),
+> folha única, bloco vazio, todos os 256 valores de byte, bloco grande enviesado
+> (1000 bytes), payload truncado → false sem crash e bordas (out/tree NULL) — 28
+> verificações, 0 falhas. Atualizou o Makefile (alvo test_block_decompress linkando
+> block.c + huffman.c + heap.c + bitio.c, .PHONY e alvo test). Compila limpo com
+> gcc -std=c11 -Wall -Wextra -Werror (0 warnings); suíte completa (heap, CRC32,
+> árvore, códigos, bitio, compressão de bloco, serialização, descompressão de
+> bloco) passa. Criou a doc técnica docs/modulos/modulo_08.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - PARADA POR original_size (não pelos bits): o payload tem padding de zeros no
+>   último byte (Módulo 5); contar bytes evita gravar a contagem exata de bits.
+> - FOLHA ÚNICA: árvore de um só nó → cada byte gasta 1 bit e emite o símbolo da
+>   raiz (espelha o código "0" do Módulo 4); sem esse caso a descida nunca sairia
+>   da raiz.
+> - ASSINATURA DESACOPLADA (tree + data + tamanhos, não BlockCompressed): casa com
+>   o fluxo do cunzip, onde a árvore (Módulo 7) e os tamanhos (Módulo 9) chegam
+>   separados do cabeçalho do bloco.
+> - ROBUSTEZ: bits insuficientes ou nó interno sem filho → false, libera o buffer
+>   parcial e zera *out, preparando o salto de bloco corrompido (Módulos 9/11).
+> - block.c passa a conter compressão (Módulo 6) e descompressão (Módulo 8); ainda
+>   NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip a partir do Módulo
+>   10/11. Por ora, apenas nos testes.

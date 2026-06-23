@@ -41,7 +41,7 @@ COMMON_SRCS =
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -66,8 +66,10 @@ cunzip: $(CUNZIP_SRCS)
 #              huffman.c + heap.c + bitio.c)
 #   Modulo 7 - serializacao da arvore (test_tree_serialization, linka
 #              tree_serialization.c + huffman.c + heap.c + bitio.c)
+#   Modulo 8 - descompressao de bloco (test_block_decompress, linka block.c +
+#              huffman.c + heap.c + bitio.c)
 # ----------------------------------------------------------------------------
-test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization
+test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
@@ -96,6 +98,10 @@ test_block_compress: tests/test_block_compress.c src/block.c src/huffman.c src/h
 test_tree_serialization: tests/test_tree_serialization.c src/tree_serialization.c src/huffman.c src/heap.c src/bitio.c
 	$(CC) $(CFLAGS) tests/test_tree_serialization.c src/tree_serialization.c src/huffman.c src/heap.c src/bitio.c -o test_tree_serialization$(EXE) $(LDFLAGS)
 	$(RUN)test_tree_serialization$(EXE)
+
+test_block_decompress: tests/test_block_decompress.c src/block.c src/huffman.c src/heap.c src/bitio.c
+	$(CC) $(CFLAGS) tests/test_block_decompress.c src/block.c src/huffman.c src/heap.c src/bitio.c -o test_block_decompress$(EXE) $(LDFLAGS)
+	$(RUN)test_block_decompress$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)

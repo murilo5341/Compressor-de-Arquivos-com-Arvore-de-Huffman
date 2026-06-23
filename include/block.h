@@ -71,4 +71,33 @@ bool block_compress(const void *input, size_t len, BlockCompressed *out);
  */
 void block_compressed_free(BlockCompressed *bc);
 
+/* ------------------------------------------------------------------ */
+/* Descompressao de um bloco (Modulo 8)                                */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Reconstroi os 'original_size' bytes originais a partir do payload comprimido
+ * 'data' (com 'data_size' bytes) e da arvore de Huffman 'tree'.
+ *
+ * A decodificacao desce a arvore bit a bit (esquerda = 0, direita = 1) ate
+ * alcancar uma folha, emitindo o seu byte, e repete ate produzir 'original_size'
+ * bytes. O criterio de parada e 'original_size' (Modulo 5/9): os bits de padding
+ * do ultimo byte sao ignorados porque a contagem de bytes ja terminou.
+ *
+ * Em caso de sucesso, retorna true e '*out' recebe um buffer recem-alocado com
+ * 'original_size' bytes (o chamador libera com free()).
+ *
+ * Casos de borda / erro (retorna conforme indicado, deixando '*out' coerente):
+ *   - bloco vazio (original_size == 0): sucesso, '*out' = NULL;
+ *   - folha unica (arvore e uma unica folha): cada byte gasta 1 bit e emite o
+ *     simbolo da raiz (espelha o codigo "0" do Modulo 4);
+ *   - 'out' NULL: retorna false;
+ *   - 'tree' NULL com original_size > 0: retorna false ('*out' = NULL);
+ *   - bits insuficientes / arvore inconsistente (no interno sem filho): retorna
+ *     false, libera o buffer parcial e deixa '*out' = NULL;
+ *   - falta de memoria: retorna false, '*out' = NULL.
+ */
+bool block_decompress(const HuffNode *tree, const uint8_t *data, size_t data_size,
+                      size_t original_size, uint8_t **out);
+
 #endif /* BLOCK_H */

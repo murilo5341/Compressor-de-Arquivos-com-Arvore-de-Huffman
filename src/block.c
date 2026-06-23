@@ -12,6 +12,11 @@
  * para o BlockCompressed (sem copia extra), e por isso NAO chamamos
  * bit_writer_free() no caminho de sucesso - quem libera esse buffer passa a ser
  * block_compressed_free().
+ *
+ * O Modulo 8 adiciona block_decompress(): o caminho inverso, que desce a arvore
+ * bit a bit (BitReader, Modulo 5) ate reconstruir 'original_size' bytes. Esse e
+ * o nucleo que o cunzip (Modulo 11) usa, com a arvore vinda da desserializacao
+ * (Modulo 7) e os tamanhos vindos do cabecalho do bloco (Modulo 9).
  */
 #include "block.h"
 
@@ -96,4 +101,64 @@ void block_compressed_free(BlockCompressed *bc)
     bc->data            = NULL;
     bc->compressed_size = 0;
     bc->original_size   = 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Descompressao de um bloco (Modulo 8)                                */
+/* ------------------------------------------------------------------ */
+
+bool block_decompress(const HuffNode *tree, const uint8_t *data, size_t data_size,
+                      size_t original_size, uint8_t **out)
+{
+    if (out == NULL)
+        return false;
+
+    *out = NULL;
+
+    /* Bloco vazio: nada a decodificar, sucesso com *out NULL. */
+    if (original_size == 0)
+        return true;
+
+    /* Bloco nao vazio precisa de arvore. */
+    if (tree == NULL)
+        return false;
+
+    uint8_t *result = (uint8_t *)malloc(original_size);
+    if (result == NULL)
+        return false;
+
+    BitReader r;
+    bit_reader_init(&r, data, data_size);
+
+    for (size_t i = 0; i < original_size; i++) {
+        const HuffNode *node = tree;
+
+        if (node->is_leaf) {
+            /* Folha unica: cada byte gasta 1 bit (codigo "0" do Modulo 4). */
+            if (bit_reader_read_bit(&r) < 0) {
+                free(result);
+                return false;
+            }
+            result[i] = node->symbol;
+            continue;
+        }
+
+        /* Desce a arvore ate uma folha: 0 = esquerda, 1 = direita. */
+        while (!node->is_leaf) {
+            int bit = bit_reader_read_bit(&r);
+            if (bit < 0) {              /* faltam bits => payload truncado */
+                free(result);
+                return false;
+            }
+            node = bit ? node->right : node->left;
+            if (node == NULL) {         /* arvore inconsistente */
+                free(result);
+                return false;
+            }
+        }
+        result[i] = node->symbol;
+    }
+
+    *out = result;
+    return true;
 }
