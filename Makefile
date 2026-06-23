@@ -24,18 +24,25 @@ ifeq ($(OS),Windows_NT)
     RM      = del /Q /F
     EXE     = .exe
     RUN     =
-    # MinGW (modelo win32) nao tem libpthread: o teste da fila concorrente
-    # (Modulo 12) so entra no `make test` em Linux.
-    CONC_TESTS =
+    # MinGW (modelo win32) nao tem libpthread: o czip usa o caminho SEQUENCIAL
+    # (Modulo 10) e os testes concorrentes (Modulos 12-14) so entram em Linux.
+    CONC_TESTS    =
+    PIPELINE_SRCS =
+    PTHREAD_DEF   =
 else
     PTHREAD = -pthread
     RM      = rm -f
     EXE     =
     RUN     = ./
-    CONC_TESTS = test_queue
+    # Linux: define HAVE_PTHREAD (czip vai pelo pipeline concorrente) e linka
+    # o pipeline (Modulos 13-14) + a fila (Modulo 12) ao czip. test_queue
+    # (Modulo 12) e test_pipeline (Modulo 14) entram no `make test`.
+    CONC_TESTS    = test_queue test_pipeline
+    PIPELINE_SRCS = src/pipeline.c src/queue.c
+    PTHREAD_DEF   = -DHAVE_PTHREAD
 endif
 
-CFLAGS  = $(CSTD) $(WARN) $(OPT) $(INCLUDE) $(PTHREAD)
+CFLAGS  = $(CSTD) $(WARN) $(OPT) $(INCLUDE) $(PTHREAD) $(PTHREAD_DEF)
 LDFLAGS = $(PTHREAD)
 
 # Modulos de codigo compartilhados entre czip e cunzip.
@@ -45,10 +52,12 @@ LDFLAGS = $(PTHREAD)
 COMMON_SRCS = src/block.c src/huffman.c src/heap.c src/bitio.c \
               src/tree_serialization.c src/crc32.c src/format.c
 
-CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
+# No Linux, czip leva tambem o pipeline concorrente (pipeline.c) e a fila
+# (queue.c). No Windows, PIPELINE_SRCS e vazio e czip usa so o caminho sequencial.
+CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS) $(PIPELINE_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_queue stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_queue test_pipeline stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -77,6 +86,7 @@ cunzip: $(CUNZIP_SRCS)
 #              huffman.c + heap.c + bitio.c)
 #   Modulo 9 - formato .cz (test_format, linka format.c)
 #   Modulo 12 - fila bloqueante (test_queue, linka queue.c + -pthread; so Linux)
+#   Modulo 14 - escritor reordenador (test_pipeline, roundtrip czip/cunzip; so Linux)
 # ----------------------------------------------------------------------------
 test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format $(CONC_TESTS)
 
@@ -122,6 +132,12 @@ test_format: tests/test_format.c src/format.c
 test_queue: tests/test_queue.c src/queue.c
 	$(CC) $(CFLAGS) tests/test_queue.c src/queue.c -o test_queue$(EXE) $(LDFLAGS)
 	$(RUN)test_queue$(EXE)
+
+# Modulo 14 - escritor reordenador. Teste de integracao (shell) que comprime com
+# N e 1 thread e exige saidas .cz IDENTICAS (reorder deterministico) + roundtrip
+# byte a byte. Depende de czip/cunzip ja compilados (pipeline ligado). So Linux.
+test_pipeline: all tests/test_pipeline.sh
+	sh tests/test_pipeline.sh
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)

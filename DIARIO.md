@@ -759,3 +759,93 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 > - PORTABILIDADE: queue só entra no make test em Linux (CONC_TESTS); no Windows
 >   é pulada. queue.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip
 >   quando o pipeline (Módulo 13) usá-lo.
+
+### 2026-06-23 — Módulo 13: pipeline concorrente de compressão
+
+**Prompt do aluno:**
+> Crie o modulo_13.md, commite e faça push. (O código do pipeline —
+> include/pipeline.h e src/pipeline.c — já existia no repositório, não rastreado,
+> sem documentação técnica nem entrada no DIARIO.)
+
+**Resposta da IA (resumo):**
+> Documentou e versionou o pipeline concorrente (E3). O pipeline liga leitora ->
+> raw_q -> N codificadoras -> done_q -> escritora pelas filas bloqueantes do
+> Módulo 12. A leitora lê blocos de block_size, numera e enfileira; fecha a
+> raw_q no EOF. Cada codificadora calcula CRC32 (M2), comprime com Huffman (M6),
+> serializa a árvore (M7) e enfileira o bloco comprimido; a última a sair fecha a
+> done_q (contador encoders_active sob mutex). A escritora reordena. O único
+> estado compartilhado mutável (contador + flags de erro) é protegido por
+> ctx->lock; o FILE* de saída é tocado por uma thread de cada vez, com ordem
+> garantida por pthread_create/join (sem mutex global de I/O — RULES REGRA 9).
+> Criou docs/modulos/modulo_13.md (seguindo _template.md) e fez commit bbb6e03 +
+> push de pipeline.h, pipeline.c e o doc.
+
+**Erros da IA / Correções necessárias:**
+> O commit do Módulo 13 (bbb6e03) NÃO atualizou o DIARIO.md (viola RULES REGRA 1).
+> Falha registrada e corrigida aqui, junto com a entrada do Módulo 14. Além
+> disso, o código do pipeline tinha sido escrito numa sessão anterior já com a
+> reordenação embutida, antecipando parte do Módulo 14 — overlap tratado no M14.
+
+**Decisões de projeto tomadas:**
+> - O .cz gerado pelo pipeline é byte a byte idêntico ao do czip sequencial
+>   (Módulo 10): paralelismo muda só a velocidade, não a saída.
+> - Posse de memória explícita seguindo o fluxo: leitora aloca data ->
+>   codificadora libera data e aloca tree_bytes/payload -> escritora grava e
+>   libera. A fila só carrega ponteiros.
+> - Doação do payload (bc.data -> cb->payload, anulando o original) evita copiar
+>   os bytes comprimidos entre estágios.
+
+---
+
+### 2026-06-23 — Módulo 14: escritor reordenador + wiring do czip ao pipeline
+
+**Prompt do aluno:**
+> Implemente o Módulo 14 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push. Pare e pergunte se houver dúvida de projeto/conflito.
+
+**Resposta da IA (resumo):**
+> Antes de implementar, a IA detectou que a reordenação (núcleo do Módulo 14) já
+> existia na writer_thread (src/pipeline.c), escrita junto ao Módulo 13. Parou e
+> perguntou o escopo; o aluno aprovou a recomendação: ligar o czip ao pipeline,
+> testar e validar a reordenação, documentar. Implementou: (1) main_czip.c agora
+> chama pipeline_compress_file sob #ifdef HAVE_PTHREAD (Linux), mantendo o caminho
+> sequencial do Módulo 10 no Windows/MinGW — antes o pipeline era código morto
+> (nunca linkado nem chamado); os helpers sequenciais (compress_one_block,
+> compress_file) ficam sob #ifndef HAVE_PTHREAD para não dispararem
+> -Wunused-function no Linux. (2) Makefile: variáveis PTHREAD_DEF
+> (= -DHAVE_PTHREAD) e PIPELINE_SRCS (= src/pipeline.c src/queue.c) por
+> plataforma; czip linka o pipeline + a fila só em Linux; novo alvo test_pipeline
+> em CONC_TESTS. (3) tests/test_pipeline.sh: teste de integração que comprime ~1
+> MiB com block-size 4096 (256 blocos) usando 8 e 1 thread e exige .cz IDÊNTICOS
+> (reorder determinístico) + roundtrip czip->cunzip byte a byte. (4)
+> docs/modulos/modulo_14.md. Validação no Windows: make all e make test seguem
+> verdes (0 warnings), roundtrip sequencial OK, o aviso de --threads ignorado
+> aparece, e o branch HAVE_PTHREAD do main_czip.c compila limpo via -fsyntax-only.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro de implementação identificado. Limitação de ambiente: o MinGW local
+> (GCC 6.3.0, modelo win32) não tem libpthread, então o pipeline e o
+> test_pipeline NÃO compilam/rodam no Windows. A validação obrigatória do módulo
+> — ausência de vazamentos (make asan / Valgrind, RULES REGRA 4 −10%) e de data
+> races (make tsan, −15%) — deve ser executada em ambiente Linux, como já
+> planejado para a Entrega 3 desde o Módulo 0. Os comandos exatos estão em
+> docs/modulos/modulo_14.md e no Makefile.
+
+**Decisões de projeto tomadas:**
+> - REORDER NA ESCRITORA com next + pending[] (vetor que cresce dobrando), não
+>   ordenação dentro da fila: concentra a ordem num só lugar, mantém as filas
+>   simples e o caminho quente sem travas.
+> - LIBERAÇÃO IMEDIATA de cada bloco após gravado (e do pending[] inteiro no
+>   caminho de erro): memória proporcional aos blocos em voo, não ao arquivo —
+>   condição para passar no ASan e para o teste de fogo de 1 GB.
+> - WIRING POR HAVE_PTHREAD: czip escolhe pipeline (Linux) vs sequencial
+>   (Windows) em tempo de compilação; a CLI (--threads/--block-size) é idêntica
+>   nos dois, então o relatório de speedup (M17) não depende do build.
+> - TESTE DE REORDER POR DETERMINISMO: comprimir o mesmo arquivo com N e 1 thread
+>   deve gerar .cz idênticos; se a reordenação falhasse, a versão paralela sairia
+>   com blocos trocados. Complementado por roundtrip byte a byte.
+> - SEM MUTEX GLOBAL DE I/O (RULES REGRA 9): o arquivo de saída é tocado por uma
+>   thread (a escritora) durante o pipeline; ordem com a main garantida por
+>   pthread_create/join.

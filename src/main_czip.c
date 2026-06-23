@@ -3,10 +3,16 @@
  *
  * Le um arquivo de entrada, divide o conteudo em BLOCOS independentes de
  * tamanho fixo (--block-size) e grava um arquivo .cz comprimido com Huffman.
- * Esta e a versao SEQUENCIAL (sem threads): o pipeline concorrente entra nos
- * Modulos 12-14. Mesmo assim, a CLI ja aceita --threads para nao retrabalhar o
- * parsing depois (RULES REGRA 5/7) - na versao sequencial o valor e validado e
- * ignorado.
+ *
+ * DOIS CAMINHOS, escolhidos em tempo de compilacao por HAVE_PTHREAD:
+ *   - LINUX (HAVE_PTHREAD definido pelo Makefile): usa o PIPELINE CONCORRENTE
+ *     (Modulos 13-14) via pipeline_compress_file(): --threads codificadoras e o
+ *     escritor REORDENADOR gravam os blocos na ordem certa. A saida e byte a
+ *     byte igual a da versao sequencial (so muda a velocidade).
+ *   - WINDOWS/MinGW (sem libpthread): usa o caminho SEQUENCIAL (Modulo 10) deste
+ *     arquivo; --threads e aceito mas IGNORADO (avisa no stderr).
+ * A CLI (--threads / --block-size) e identica nos dois (RULES REGRA 5/7), entao
+ * o teste de fogo e o relatorio de speedup nao dependem do ambiente de build.
  *
  * Fluxo (modularizacao.md, Modulo 10):
  *   1) abrir arquivo de entrada e arquivo de saida .cz;
@@ -26,15 +32,20 @@
  * corrigir o campo. O arquivo de saida e regular (seekable), entao isso e
  * seguro e simples de explicar na defesa.
  */
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "block.h"
+#ifdef HAVE_PTHREAD
+#include "pipeline.h"  /* Linux: caminho concorrente (Modulos 13-14) */
+#else
+#include "block.h"     /* Windows: caminho sequencial (Modulo 10) */
 #include "crc32.h"
 #include "format.h"
 #include "tree_serialization.h"
+#endif
 
 /* Tamanho de bloco padrao quando --block-size nao e informado (64 KiB). */
 #define DEFAULT_BLOCK_SIZE 65536u
@@ -127,6 +138,13 @@ static bool parse_args(int argc, char **argv, CzipOptions *opt)
     }
     return true;
 }
+
+#ifndef HAVE_PTHREAD
+/* --------------------------------------------------------------------------
+ * Caminho SEQUENCIAL (Modulo 10) - usado apenas quando NAO ha pthreads.
+ * No Linux (HAVE_PTHREAD), a compressao vai pelo pipeline concorrente e estas
+ * funcoes nao sao compiladas (evita -Wunused-function sob -Werror).
+ * -------------------------------------------------------------------------- */
 
 /*
  * Comprime UM bloco (os 'n' bytes de 'buf', com indice 'index') e o grava em
@@ -267,6 +285,7 @@ static int compress_file(const CzipOptions *opt)
     }
     return rc;
 }
+#endif /* !HAVE_PTHREAD */
 
 int main(int argc, char **argv)
 {
@@ -276,12 +295,19 @@ int main(int argc, char **argv)
         return 1;
     }
 
+#ifdef HAVE_PTHREAD
+    /* Linux: pipeline concorrente (Modulos 13-14). --threads controla as
+     * codificadoras; o escritor reordenador grava os blocos em ordem. */
+    return pipeline_compress_file(opt.input_path, opt.output_path,
+                                  opt.block_size, (int)opt.threads);
+#else
+    /* Windows/MinGW sem libpthread: caminho sequencial (Modulo 10). */
     if (opt.threads != 1) {
         fprintf(stderr,
-                "czip: aviso - versao sequencial (Modulo 10); --threads %ld "
-                "sera ignorado (usado a partir do Modulo 13).\n",
+                "czip: aviso - ambiente sem pthreads; --threads %ld sera "
+                "ignorado (caminho sequencial do Modulo 10).\n",
                 opt.threads);
     }
-
     return compress_file(&opt);
+#endif
 }
