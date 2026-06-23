@@ -849,3 +849,53 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 > - SEM MUTEX GLOBAL DE I/O (RULES REGRA 9): o arquivo de saída é tocado por uma
 >   thread (a escritora) durante o pipeline; ordem com a main garantida por
 >   pthread_create/join.
+
+### 2026-06-23 — Módulo 15: suíte de roundtrip e edge-cases
+
+**Prompt do aluno:**
+> Implementar o Módulo 15 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push. Parar e perguntar se houver dúvida de projeto/conflito.
+
+**Resposta da IA (resumo):**
+> O prompt pedia "modulo 05", mas o Módulo 5 (bitio) já estava implementado e
+> commitado e o repositório estava no Módulo 14; a IA PAROU e confirmou com o
+> aluno que o alvo real era o próximo módulo não-feito, o Módulo 15 (suíte de
+> roundtrip + edge-cases, E4). Implementou dois scripts shell: (1)
+> scripts/gen_edge_cases.sh, que gera os 7 casos obrigatórios da RULES REGRA 10
+> (vazio, 1 byte, símbolo repetido, todos os 256 valores de byte, texto, binário
+> pequeno e aleatório) usando só printf/head//dev/urandom (portável MSYS2/Linux);
+> e (2) tests/test_roundtrip.sh, que comprime e descomprime cada caso com 3
+> block-sizes (7, 64, 65536) e compara com o original via cmp (roundtrip byte a
+> byte), e ainda valida o caso de CORRUPÇÃO DA ÁRVORE serializada (offset 44) e de
+> METADADOS (tree_size, offset 36) exigindo que o cunzip reporte erro e saia SEM
+> crash (exit < 128; sinal ≥ 128 = falha). Atualizou o Makefile: novo alvo
+> test_roundtrip (depende de all) incluído no make test em Windows E Linux (usa só
+> o caminho sequencial, diferente de test_pipeline/test_queue que exigem pthreads),
+> e o adicionou ao .PHONY. make test passa inteiro no Windows: toda a suíte
+> unitária (Módulos 1-9, 290 verificações) + test_roundtrip (7 casos × 3
+> block-sizes + 2 corrupções) verde, 0 warnings com
+> gcc -std=c11 -Wall -Wextra -Werror. Criou a doc técnica docs/modulos/modulo_15.md.
+
+**Erros da IA / Correções necessárias:**
+> O prompt trazia "modulo 05" (e o placeholder MODULO_ALVO), em conflito com o
+> estado do repositório (Módulo 5 já feito, repo no Módulo 14). A IA não assumiu:
+> parou e perguntou, e o aluno confirmou o Módulo 15. Nenhum erro de implementação
+> identificado depois disso.
+
+**Decisões de projeto tomadas:**
+> - SUÍTE EM SHELL (não .c): testa os binários czip/cunzip reais de ponta a ponta,
+>   como o usuário os usa; cmp é o critério de igualdade byte a byte. O edital
+>   (REGRA 10) pede explicitamente o roundtrip czip→cunzip→comparação.
+> - test_roundtrip RODA TAMBÉM NO WINDOWS (caminho sequencial dos Módulos 10/11),
+>   ao contrário de test_pipeline/test_queue (pthreads, só Linux) — amplia a
+>   cobertura no ambiente de desenvolvimento local.
+> - 3 BLOCK-SIZES por caso (7, 64, 65536): o 7, pequeno e não-potência-de-2, força
+>   muitos blocos e último bloco parcial; 65536 é o padrão de produção (1 bloco nos
+>   casos pequenos). Exercita tanto arquivo de bloco único quanto multi-bloco.
+> - CORRUPÇÃO ÁRVORE/METADADOS separada da de PAYLOAD (Módulo 16): caminhos de
+>   falha distintos (tree_deserialize→NULL vs CRC32 divergente). "Sem crash"
+>   detectado por exit < 128 (≥128 = término por sinal, ex. segfault=139).
+> - GERAÇÃO DE CASOS ISOLADA em scripts/gen_edge_cases.sh, reutilizável pelos
+>   Módulos 16-17 (corrupção de payload e benchmarks).
