@@ -274,3 +274,54 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 > - huffman.c/heap.c ainda NÃO entram em COMMON_SRCS — só serão linkados ao
 >   czip/cunzip quando a compressão de bloco (Módulo 6+) passar a usá-los; por ora
 >   linkados apenas no teste.
+
+### 2026-06-22 — Módulo 4: tabela de códigos de Huffman
+
+**Prompt do aluno:**
+> Implementar o Módulo 4 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit, push e exportação da sessão.
+
+**Resposta da IA (resumo):**
+> Implementou a geração da tabela de códigos de Huffman em include/huffman.h e
+> src/huffman.c. Adicionou a struct HuffCode { uint64_t bits; uint8_t length; } e
+> a função huffman_build_codes(root, table[256]), que percorre a árvore (esquerda
+> = bit 0, direita = bit 1) preenchendo o código de cada folha. Os bits são
+> guardados alinhados à direita, MSB-first (primeiro bit do caminho na posição
+> length-1), para casar com a escrita bit a bit do Módulo 5; length == 0 marca
+> símbolo ausente. Tratou o caso especial obrigatório: folha única (bloco com um
+> único byte distinto) recebe o código "0" (bits=0, length=1), fechando o caso
+> que o Módulo 3 deixara em aberto. A função valida que nenhum código passa de 64
+> bits e retorna false nesse caso (e em root/table NULL). Criou
+> tests/test_huffman_codes.c cobrindo a modularizacao.md/REGRA 10: byte mais
+> frequente com código mais curto, propriedade de prefixo (nenhum código é
+> prefixo de outro, testado em todos os pares), folha única, decodificação
+> coerente (cada código desce a árvore de volta ao seu símbolo), bordas NULL e
+> arquivo com os 256 valores de byte (códigos de 8 bits, todos decodificáveis) —
+> 27 verificações, 0 falhas. Atualizou o Makefile (alvo test_huffman_codes
+> linkando huffman.c + heap.c, .PHONY e alvo test). Compila limpo com
+> gcc -std=c11 -Wall -Wextra -Werror (0 warnings); suíte completa (heap, CRC32,
+> árvore, códigos) passa. Criou a doc técnica docs/modulos/modulo_04.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - REPRESENTAÇÃO DOS CÓDIGOS (lacuna crítica #3): escolhida a opção (a) da
+>   modularizacao.md — manter uint64_t E validar o limite de 64 bits. Um código
+>   de Huffman só atinge comprimento L se o bloco tiver pelo menos Fibonacci(L+2)
+>   bytes; para L=64 isso exigiria um bloco de ~10^13 bytes, inviável com os
+>   tamanhos de bloco do projeto. Ainda assim, huffman_build_codes valida e
+>   retorna false se algum código passaria de 64 bits, em vez de estourar
+>   silenciosamente. A opção (b) (vetor dinâmico de bytes) foi descartada por
+>   adicionar alocação/complexidade desnecessária ao caso prático.
+> - FOLHA ÚNICA → código "0" (1 bit), fechando o caso especial aberto no Módulo 3
+>   (sem isso o código teria comprimento 0 e a leitura não saberia quantos bits
+>   consumir).
+> - BITS MSB-FIRST alinhados à direita (primeiro bit do caminho em length-1),
+>   para que a escrita bit a bit do Módulo 5 emita da posição length-1 até 0.
+> - length == 0 marca SÍMBOLO AUSENTE — convenção simples, sem estrutura paralela
+>   de presença.
+> - huffman.c/heap.c continuam fora de COMMON_SRCS; serão linkados ao czip/cunzip
+>   só quando a compressão de bloco (Módulo 6) os usar. Por ora, apenas no teste.

@@ -78,4 +78,53 @@ HuffNode *huffman_build_tree(const uint64_t freq[256]);
 /* Libera recursivamente a arvore. Seguro chamar com NULL. */
 void huffman_free_tree(HuffNode *root);
 
+/* ------------------------------------------------------------------ */
+/* Tabela de codigos (Modulo 4)                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * HuffCode - codigo binario de um simbolo (folha da arvore).
+ *
+ * O codigo e obtido percorrendo a arvore da raiz ate a folha do simbolo:
+ * cada passo para a ESQUERDA acrescenta um bit 0 e cada passo para a DIREITA
+ * acrescenta um bit 1. Os bits sao guardados em 'bits' alinhados a DIREITA
+ * (MSB-first): o primeiro bit do codigo fica na posicao 'length - 1' e o
+ * ultimo na posicao 0. Assim, ao escrever (Modulo 5) basta emitir os bits de
+ * 'length - 1' ate 0.
+ *
+ * bits  : os ate 64 bits do codigo, encostados a direita (low bits).
+ * length: comprimento do codigo em bits. length == 0 marca um simbolo AUSENTE
+ *         (sem folha na arvore). O caso de folha unica usa length == 1.
+ *
+ * Decisao de projeto (modularizacao.md, Modulo 4 - lacuna critica #3):
+ * 'bits' e um uint64_t, o que LIMITA o codigo a 64 bits. Para uma arvore de
+ * Huffman, um codigo so atinge comprimento L se o bloco tiver pelo menos
+ * Fibonacci(L+2) bytes (distribuicao patologica tipo Fibonacci). Para L == 64
+ * isso exige um unico bloco com ~10^13 bytes, inviavel com os tamanhos de bloco
+ * usados aqui. Ainda assim, huffman_build_codes() VALIDA esse limite e retorna
+ * false se algum codigo passar de 64 bits, em vez de estourar silenciosamente.
+ */
+typedef struct {
+    uint64_t bits;
+    uint8_t  length;
+} HuffCode;
+
+/*
+ * Gera a tabela de codigos percorrendo a arvore a partir de 'root'.
+ *
+ * 'table' (256 posicoes) e REINICIADO: simbolos ausentes ficam com length == 0;
+ * cada folha alcancada recebe seu codigo (bits + length). Esquerda = bit 0,
+ * direita = bit 1.
+ *
+ * Casos de borda:
+ *   - root NULL ou table NULL: retorna false (nada a gerar);
+ *   - root e uma FOLHA UNICA (bloco com um unico byte distinto): atribui o
+ *     codigo "0" (bits = 0, length = 1) a esse byte - sem isso o codigo teria
+ *     comprimento zero e a (de)codificacao nao saberia quantos bits ler;
+ *   - algum codigo passaria de 64 bits: retorna false (ver decisao acima).
+ *
+ * Retorna true se a tabela foi gerada com sucesso.
+ */
+bool huffman_build_codes(const HuffNode *root, HuffCode table[256]);
+
 #endif /* HUFFMAN_H */

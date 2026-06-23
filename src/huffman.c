@@ -160,3 +160,53 @@ void huffman_free_tree(HuffNode *root)
     huffman_free_tree(root->right);
     free(root);
 }
+
+/* ------------------------------------------------------------------ */
+/* Tabela de codigos (Modulo 4)                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Percorre a arvore acumulando o codigo do caminho. 'bits' guarda os bits ja
+ * acumulados (MSB-first, encostados a direita) e 'length' quantos sao.
+ *   - ao chegar numa folha, grava {bits, length} na posicao do simbolo;
+ *   - num no interno, desce a esquerda (bit 0) e a direita (bit 1).
+ * Retorna false se um codigo passaria de 64 bits (ver decisao em huffman.h).
+ */
+static bool build_codes_rec(const HuffNode *node, uint64_t bits, uint8_t length,
+                            HuffCode table[256])
+{
+    if (node->is_leaf) {
+        table[node->symbol].bits   = bits;
+        table[node->symbol].length = length;
+        return true;
+    }
+
+    /* Descer mais um nivel geraria um codigo de 'length + 1' bits. */
+    if (length >= 64)
+        return false;
+
+    return build_codes_rec(node->left,  (bits << 1) | 0u, (uint8_t)(length + 1), table)
+        && build_codes_rec(node->right, (bits << 1) | 1u, (uint8_t)(length + 1), table);
+}
+
+bool huffman_build_codes(const HuffNode *root, HuffCode table[256])
+{
+    if (root == NULL || table == NULL)
+        return false;
+
+    /* Reinicia: length 0 marca simbolo ausente. */
+    for (int i = 0; i < 256; i++) {
+        table[i].bits   = 0;
+        table[i].length = 0;
+    }
+
+    /* Caso especial: folha unica (um unico byte distinto no bloco). Sem isso o
+     * codigo teria comprimento 0; por convencao o codigo desse byte e "0". */
+    if (root->is_leaf) {
+        table[root->symbol].bits   = 0;
+        table[root->symbol].length = 1;
+        return true;
+    }
+
+    return build_codes_rec(root, 0, 0, table);
+}
