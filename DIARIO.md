@@ -951,3 +951,98 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   porque o próximo bloco é localizado por tree_size + compressed_size, sem confiar
 >   no conteúdo corrompido.
 > - TESTE EM SHELL rodando também no Windows (caminho sequencial), como o M15.
+
+### 2026-06-23 — Decisão de ambiente: Windows × Linux/WSL para concorrência
+
+**Prompt do aluno:**
+> (Ao pedir o Módulo 18) "Meu projeto deve rodar em Windows, não em Linux." / "De
+> acordo com o Tema 11 no trabalho.txt, em quesito de implementação e ferramentas,
+> só pode ser implementado usando esse pthread do Linux?" / "Então, no momento,
+> melhor seguir e implementar o último Módulo 18 e depois instalar o WSL?"
+
+**Resposta da IA (resumo):**
+> A IA leu o trabalho.txt e esclareceu: o edital NÃO exige pthread nem Linux —
+> exige "pipeline de threads com filas limitadas e condvars" (Tema 11) e PROVA de
+> ausência de races/vazamentos com ThreadSanitizer e Valgrind/AddressSanitizer
+> (Seção 2). pthread não é exclusivo do Linux (mingw-w64 modelo posix traz
+> winpthreads → mesmo código roda como .exe Windows nativo); o motivo de não
+> compilar threads aqui é só o toolchain local (GCC 6.3.0 MinGW.org, modelo win32,
+> sem libpthread). PORÉM TSan e Valgrind não existem no Windows, então as
+> penalidades −15%/−10% só podem ser comprovadas em Linux/WSL. Diagnóstico do
+> ambiente: sem pacman/MSYS2, sem /mingw64, WSL ainda NÃO instalado (só o launcher).
+> Recomendação: usar WSL (Linux dentro do Windows 11, mesmo notebook, mesmos
+> arquivos via /mnt/c) — único ambiente que cobre o edital inteiro (funcional +
+> speedup 1GB + TSan + Valgrind) numa instalação. Sobre o Módulo 18: ele depende do
+> results/resultados.csv do Módulo 17, então a IA implementou M17 E M18 juntos como
+> SCRIPTS (parte reproduzível/versionável), deixando a coleta de dados reais para o
+> WSL.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro. Esclarecimento de escopo (edital não fixa SO) e de ferramenta
+> (pthread ≠ Linux; TSan/Valgrind = Unix). Decisão pendente do aluno: instalar WSL
+> (recomendado) após implementar M17/M18.
+
+**Decisões de projeto tomadas:**
+> - AMBIENTE DE EXECUÇÃO/PROVA = WSL (a instalar): o código pthread já está correto
+>   e portável; o speedup e as provas TSan/Valgrind rodam em WSL no próprio notebook
+>   Windows. O .exe sequencial (Windows nativo) continua válido para czip/cunzip.
+> - M17 E M18 IMPLEMENTADOS COMO SCRIPTS AGORA; dados reais (resultados.csv, PNGs,
+>   teste de fogo 1GB) coletados depois no WSL — sem inventar números (RULES REGRA 7).
+
+### 2026-06-23 — Módulos 17 e 18: benchmark/teste de fogo + gráficos do relatório
+
+**Prompt do aluno:**
+> Implementar o Módulo 18 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores. (A IA detectou que o M17 não fora feito e que o M18 depende dele;
+> com o aluno, decidiu implementar os dois juntos como scripts.)
+
+**Resposta da IA (resumo):**
+> Implementou os Módulos 17 e 18 como scripts reproduzíveis (RULES REGRA 7).
+> M17: scripts/gen_inputs.sh gera entradas por TIPO (texto, logs, binário,
+> repetido, aleatório) e o arquivo de ~1 GiB do teste de fogo, montando arquivos
+> grandes por DUPLICAÇÃO (cat a a > b, O(log n) passos); scripts/run_bench.sh roda
+> o czip por arquivo × threads (1/2/4/8/16), mede o tempo com date +%s.%N, valida
+> o roundtrip (cunzip + cmp) e grava results/resultados.csv (colunas arquivo,tipo,
+> tamanho,block_size,threads,rep,tempo_s,tamanho_cz,taxa_pct,throughput_mibs,ok),
+> com a matemática de ponto flutuante em awk (sem bc nem /usr/bin/time). M18:
+> scripts/plot_results.py lê o CSV (só stdlib csv), agrega por (arquivo,threads)
+> pela MEDIANA das repetições, deriva o speedup = tempo[1]/tempo[N] e gera 4 PNGs
+> (speedup_vs_threads com reta ideal, tempo_vs_threads, throughput_vs_threads,
+> taxa_por_tipo) via matplotlib (backend Agg); load_rows/aggregate são separados de
+> make_plots para serem testáveis sem matplotlib. Criou relatorio/esboco.md
+> (esqueleto do relatório 8–15p mapeando cada gráfico). Makefile: alvo stress
+> agora gera entradas + roda o benchmark (variáveis BENCH_SIZE/FIRE_SIZE/THREADS/
+> BLOCK/REPS), mais bench (atalho) e graficos (chama o plot); .gitignore passou a
+> ignorar __pycache__/*.pyc. Validação no Windows: gen_inputs e run_bench rodam
+> ponta a ponta (make stress BENCH_SIZE=262144 FIRE_SIZE=0), CSV com taxa coerente
+> (repetido 87%, texto 53%, logs 40%, binário 1%, aleatório ~0%) e ok=1 (roundtrip);
+> a lógica de load/aggregate/speedup do plot_results validada com um CSV sintético
+> (mediana e speedup conferidos); plot_results sem matplotlib termina gracioso
+> (exit 2, mensagem de pip install). Criou docs/modulos/modulo_17.md e modulo_18.md.
+
+**Erros da IA / Correções necessárias:**
+> O M18 não pode ser feito isolado (depende do schema/dados do resultados.csv do
+> M17); a IA parou, alinhou com o aluno e implementou M17+M18 juntos. O __pycache__
+> gerado pelo py_compile foi barrado adicionando-o ao .gitignore antes do commit.
+> Limitação de ambiente: o SPEEDUP REAL exige o pipeline concorrente (pthreads,
+> Linux/WSL); no Windows o czip cai no sequencial e a varredura de threads sai com
+> tempos ~iguais (speedup ~1) — os scripts foram validados na mecânica, mas a
+> coleta válida para o relatório (incl. teste de fogo de 1 GB) será feita no WSL.
+
+**Decisões de projeto tomadas:**
+> - M17 E M18 COMO SCRIPTS REPRODUZÍVEIS, sem dados fabricados: results/ e inputs/
+>   são gitignored; o CSV e os PNGs são gerados na execução real (RULES REGRA 7).
+> - SCHEMA DO CSV com tempo/taxa/throughput por (arquivo,threads,rep); o SPEEDUP é
+>   DERIVADO no plot (tempo[1]/tempo[N]), não gravado — evita redundância e recálculo.
+> - MEDIANA das repetições no plot (não média): robusta a outliers de medição.
+> - ARQUIVOS GRANDES POR DUPLICAÇÃO (cat a a > b): cresce em O(log n) passos, viável
+>   para o arquivo de 1 GiB do teste de fogo.
+> - TEMPO COM date +%s.%N + awk: sem depender de /usr/bin/time (GNU) nem de bc,
+>   ausentes em alguns ambientes; portável MSYS2/Linux.
+> - PLOT SEPARADO EM load_rows/aggregate (stdlib) × make_plots (matplotlib): a lógica
+>   de dados é testável sem a dependência gráfica; matplotlib só é exigido ao renderizar.
+> - make stress agora É o benchmark (RULES REGRA 4): gera entradas + mede; FIRE_SIZE
+>   controla o arquivo de 1 GiB do teste de fogo (padrão 0 = pula, para rapidez).
+> - ROUNDTRIP DENTRO DO BENCH (cunzip + cmp, fora do tempo medido): garante que a
+>   medição é de uma compressão correta, não de uma saída corrompida.

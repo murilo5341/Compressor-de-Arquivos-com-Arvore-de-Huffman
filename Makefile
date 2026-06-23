@@ -57,7 +57,7 @@ COMMON_SRCS = src/block.c src/huffman.c src/heap.c src/bitio.c \
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS) $(PIPELINE_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_roundtrip test_corruption test_queue test_pipeline stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_roundtrip test_corruption test_queue test_pipeline stress bench graficos clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -156,10 +156,33 @@ test_pipeline: all tests/test_pipeline.sh
 	sh tests/test_pipeline.sh
 
 # ----------------------------------------------------------------------------
-# Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)
+# Teste de stress / carga e benchmark (Modulo 17) + graficos (Modulo 18).
+#
+# stress   - gera as entradas (gen_inputs.sh) e roda o benchmark (run_bench.sh),
+#            produzindo results/resultados.csv. Por padrao usa BENCH_SIZE de
+#            entrada e PULA o arquivo de 1 GiB (FIRE_SIZE=0) para nao demorar; o
+#            teste de fogo de 1 GB completo roda passando FIRE_SIZE=1073741824.
+# bench    - atalho equivalente ao stress (nome alternativo).
+# graficos - gera os PNGs do relatorio a partir do CSV (requer matplotlib).
+#
+# Variaveis (override no comando): BENCH_SIZE, FIRE_SIZE, THREADS, BLOCK, REPS.
+# Ex.: make stress FIRE_SIZE=1073741824 THREADS="1 2 4 8 16"
+#
+# O speedup so e real com o pipeline concorrente (pthreads, Linux/WSL); no Windows
+# o czip cai no sequencial e a coluna de threads sai com tempos ~iguais.
 # ----------------------------------------------------------------------------
+BENCH_SIZE ?= 33554432
+FIRE_SIZE  ?= 0
+
 stress: all
-	@echo Stress test sera implementado a partir do Modulo 17.
+	sh scripts/gen_inputs.sh inputs $(BENCH_SIZE) $(FIRE_SIZE)
+	sh scripts/run_bench.sh inputs results/resultados.csv
+	@echo "stress: CSV em results/resultados.csv. Gere os graficos com 'make graficos'."
+
+bench: stress
+
+graficos:
+	python scripts/plot_results.py results/resultados.csv results/graphs
 
 # ----------------------------------------------------------------------------
 # AddressSanitizer - detecta vazamentos e acesso indevido de memoria (-10%).
@@ -195,7 +218,9 @@ help:
 	@echo Alvos disponiveis:
 	@echo   all       - compila czip e cunzip
 	@echo   test      - compila e roda os testes unitarios
-	@echo   stress    - roda o teste de stress/carga
+	@echo   stress    - gera entradas e roda o benchmark (results/resultados.csv)
+	@echo   bench     - atalho para stress
+	@echo   graficos  - gera os PNGs do relatorio (requer matplotlib)
 	@echo   asan      - build com AddressSanitizer (Linux)
 	@echo   tsan      - build com ThreadSanitizer (Linux)
 	@echo   valgrind  - instrucoes de uso do Valgrind (Linux)
