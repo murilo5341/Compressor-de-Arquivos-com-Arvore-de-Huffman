@@ -41,7 +41,7 @@ COMMON_SRCS =
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -59,8 +59,9 @@ cunzip: $(CUNZIP_SRCS)
 # Cada modulo adiciona aqui a compilacao e execucao do seu teste.
 #   Modulo 1 - heap binario (test_heap)
 #   Modulo 2 - CRC32 por bloco (test_crc32)
+#   Modulo 3 - arvore de Huffman (test_huffman_tree, linka huffman.c + heap.c)
 # ----------------------------------------------------------------------------
-test: test_heap test_crc32
+test: test_heap test_crc32 test_huffman_tree
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
@@ -69,6 +70,10 @@ test_heap: tests/test_heap.c src/heap.c
 test_crc32: tests/test_crc32.c src/crc32.c
 	$(CC) $(CFLAGS) tests/test_crc32.c src/crc32.c -o test_crc32$(EXE) $(LDFLAGS)
 	$(RUN)test_crc32$(EXE)
+
+test_huffman_tree: tests/test_huffman_tree.c src/huffman.c src/heap.c
+	$(CC) $(CFLAGS) tests/test_huffman_tree.c src/huffman.c src/heap.c -o test_huffman_tree$(EXE) $(LDFLAGS)
+	$(RUN)test_huffman_tree$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)

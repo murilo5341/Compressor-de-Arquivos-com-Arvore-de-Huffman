@@ -227,3 +227,50 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   acumular o CRC32 de um bloco lido em pedaços.
 > - crc32.c ainda não entra em COMMON_SRCS (só será linkado ao czip/cunzip quando o
 >   formato .cz, no Módulo 9, passar a gravar/verificar o checksum).
+
+### 2026-06-22 — Módulo 3: construção da árvore de Huffman
+
+**Prompt do aluno:**
+> Implementar o Módulo 3 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit, push e exportação da sessão.
+
+**Resposta da IA (resumo):**
+> Implementou a construção da árvore de Huffman em include/huffman.h, src/huffman.c
+> e tests/test_huffman_tree.c. API: huffman_count_frequencies (conta os bytes 0–255
+> de um bloco), huffman_build_tree (monta a árvore reaproveitando o min-heap do
+> Módulo 1 como fila de prioridade) e huffman_free_tree (libera recursivamente). O
+> algoritmo cria uma folha por byte com freq > 0, empurra todas no min-heap e
+> combina os dois menores num nó interno (freq = soma) até sobrar a raiz. Tratou o
+> caso especial obrigatório: bloco com um único byte distinto gera uma FOLHA ÚNICA
+> (raiz é a própria folha, profundidade 0); a atribuição do código "0" fica para o
+> Módulo 4. Bloco vazio retorna NULL. O HuffNode é público (não opaco) porque os
+> Módulos 4/7/8 percorrem a árvore. O caminho de erro de memória libera tudo que já
+> foi alocado (sem vazamentos). O teste cobre os casos da modularizacao.md/REGRA 10:
+> contagem correta, árvore válida (folhas = símbolos distintos, nó interno = soma
+> dos filhos, total preservado), folha única, bloco vazio → NULL, arquivo com os
+> 256 valores de byte e a relação profundidade × frequência (símbolo mais frequente
+> não fica mais fundo) — 31 verificações, 0 falhas. Atualizou o alvo `test` do
+> Makefile (test_huffman_tree linkando huffman.c + heap.c) e o .PHONY. Compila limpo
+> com gcc -std=c11 -Wall -Wextra -Werror (0 warnings); suíte completa (heap, CRC32,
+> Huffman) passa. Criou a doc técnica docs/modulos/modulo_03.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - FOLHA ÚNICA para bloco com um só byte distinto (modularizacao.md, Módulo 3);
+>   a atribuição do código "0" (1 bit) fica no Módulo 4 (tabela de códigos).
+> - HuffNode PÚBLICO (não opaco): tabela de códigos (Módulo 4), serialização
+>   (Módulo 7) e descompressão (Módulo 8) precisam percorrer a árvore.
+> - Reaproveitamento do min-heap do Módulo 1 como fila de prioridade — o passo
+>   central de Huffman ("os dois menores") é exatamente o que o heap faz em O(log n).
+> - Determinismo: folhas empurradas em ordem de byte (0→255) + desempate do heap
+>   pela ordem de inserção → mesma distribuição gera sempre a mesma árvore (testes
+>   reproduzíveis).
+> - Caminho de erro de memória libera todas as subárvores já alocadas (heap_drain_
+>   and_free + liberação dos nós já retirados do heap), sem vazamentos.
+> - huffman.c/heap.c ainda NÃO entram em COMMON_SRCS — só serão linkados ao
+>   czip/cunzip quando a compressão de bloco (Módulo 6+) passar a usá-los; por ora
+>   linkados apenas no teste.
