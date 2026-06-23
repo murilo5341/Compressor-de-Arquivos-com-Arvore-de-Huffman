@@ -899,3 +899,55 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   detectado por exit < 128 (≥128 = término por sinal, ex. segfault=139).
 > - GERAÇÃO DE CASOS ISOLADA em scripts/gen_edge_cases.sh, reutilizável pelos
 >   Módulos 16-17 (corrupção de payload e benchmarks).
+
+### 2026-06-23 — Módulo 16: teste de corrupção de payload + recuperação parcial
+
+**Prompt do aluno:**
+> Implementar o Módulo 16 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push. Parar e perguntar se houver dúvida de projeto/conflito.
+
+**Resposta da IA (resumo):**
+> Implementou tests/test_corruption.sh, fechando a parte de DETECÇÃO + RECUPERAÇÃO
+> PARCIAL do teste de fogo (RULES REGRA 5/10). O script comprime um texto grande
+> com --block-size 1024 (139 blocos), percorre os cabeçalhos do .cz lendo os
+> inteiros little-endian com um helper ru32 (via od) para localizar o payload do
+> bloco do meio (block_count/2), inverte o PRIMEIRO byte desse payload
+> (val XOR 0xFF, conv=notrunc preserva o tamanho) e roda o cunzip. Valida três
+> coisas: (1) o cunzip DETECTA o bloco por CRC32 e sai com exit 1 SEM crash
+> (exit < 128; ≥128 = sinal); (2) RECUPERAÇÃO PARCIAL — reconstrói o arquivo
+> esperado = original com os bytes do bloco-alvo removidos (head -c + tail -c) e
+> compara byte a byte com a saída real do cunzip via cmp, provando que NENHUM
+> outro bloco foi afetado; (3) que havia vários blocos (>= 4). Corrigiu, durante
+> a verificação, os offsets do header de bloco (original_size@+8,
+> compressed_size@+12, tree_size@+16 — não a ordem que eu havia chutado antes).
+> Atualizou o Makefile: novo alvo test_corruption (depende de all) incluído no
+> make test em Windows E Linux (caminho sequencial, sem pthreads), e o .PHONY.
+> make test passa inteiro no Windows: suíte unitária (Módulos 1-9) + test_roundtrip
+> (M15) + test_corruption (M16) verde, 0 warnings com
+> gcc -std=c11 -Wall -Wextra -Werror. Resultado: bloco 69/139 corrompido detectado,
+> 138 blocos restantes restaurados byte a byte. Criou a doc docs/modulos/modulo_16.md.
+
+**Erros da IA / Correções necessárias:**
+> Na 1ª tentativa de parse do .cz, a IA assumiu os offsets do cabeçalho de bloco na
+> ordem errada (leu compressed_size onde estava o CRC32, obtendo um valor enorme).
+> Detectado na hora pela verificação (comp=3973481793) e corrigido conferindo o
+> layout do Módulo 9: block_index(u64)@0, original_size@8, compressed_size@12,
+> tree_size@16, crc@20. Após a correção o walk fechou exatamente no tamanho do
+> arquivo. Nenhum outro erro.
+
+**Decisões de projeto tomadas:**
+> - CORROMPER O PRIMEIRO BYTE DO PAYLOAD (não o último): o último byte tem padding
+>   de zeros (Módulo 5) e alterá-lo poderia não mudar o conteúdo decodificado; o
+>   primeiro byte carrega bits de código reais → garante divergência de CRC32.
+> - PROVA DE RECUPERAÇÃO PARCIAL POR cmp CONTRA O ESPERADO (não só pelo tamanho da
+>   saída): reconstruir original − bloco-alvo e comparar byte a byte detecta
+>   qualquer outro bloco afetado, não apenas a contagem de bytes.
+> - DISTINÇÃO M15 × M16: M15 corrompe ÁRVORE/METADADOS (quebra a decodificação,
+>   tree_deserialize → NULL); M16 corrompe PAYLOAD (decodifica, mas o CRC32 do
+>   conteúdo restaurado diverge). Caminhos de falha diferentes, ambos graciosos.
+> - SALTO DE BLOCO PELO CABEÇALHO (Módulo 11): a recuperação parcial funciona
+>   porque o próximo bloco é localizado por tree_size + compressed_size, sem confiar
+>   no conteúdo corrompido.
+> - TESTE EM SHELL rodando também no Windows (caminho sequencial), como o M15.

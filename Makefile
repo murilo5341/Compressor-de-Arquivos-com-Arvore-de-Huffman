@@ -57,7 +57,7 @@ COMMON_SRCS = src/block.c src/huffman.c src/heap.c src/bitio.c \
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS) $(PIPELINE_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_roundtrip test_queue test_pipeline stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_roundtrip test_corruption test_queue test_pipeline stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -86,10 +86,11 @@ cunzip: $(CUNZIP_SRCS)
 #              huffman.c + heap.c + bitio.c)
 #   Modulo 9 - formato .cz (test_format, linka format.c)
 #   Modulo 15 - suite de roundtrip + edge-cases (test_roundtrip; Windows e Linux)
+#   Modulo 16 - corrupcao de payload + recuperacao parcial (test_corruption; Windows e Linux)
 #   Modulo 12 - fila bloqueante (test_queue, linka queue.c + -pthread; so Linux)
 #   Modulo 14 - escritor reordenador (test_pipeline, roundtrip czip/cunzip; so Linux)
 # ----------------------------------------------------------------------------
-test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_roundtrip $(CONC_TESTS)
+test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_roundtrip test_corruption $(CONC_TESTS)
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
@@ -133,6 +134,13 @@ test_format: tests/test_format.c src/format.c
 # crash. Usa o czip/cunzip SEQUENCIAL, entao roda tambem no Windows/MSYS2.
 test_roundtrip: all tests/test_roundtrip.sh
 	sh tests/test_roundtrip.sh
+
+# Modulo 16 - corrupcao de PAYLOAD + recuperacao parcial (RULES REGRA 5/10).
+# Comprime um arquivo multi-bloco, corrompe 1 byte do payload de um bloco do meio
+# e exige que o cunzip detecte o bloco por CRC32 (sem crash) e restaure os demais
+# byte a byte. Usa o czip/cunzip SEQUENCIAL, entao roda tambem no Windows/MSYS2.
+test_corruption: all tests/test_corruption.sh
+	sh tests/test_corruption.sh
 
 # Modulo 12 - fila bloqueante concorrente. Requer pthreads (-pthread), entao so
 # e compilado/rodado em Linux; no Windows (MinGW sem libpthread) CONC_TESTS e
