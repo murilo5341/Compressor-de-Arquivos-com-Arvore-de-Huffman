@@ -1097,3 +1097,48 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   matemática num só lugar; o wrapper passa work/outdir via `gnuplot -e`.
 > - SCRIPTS DE GRÁFICO/BENCH EM SHELL+GNUPLOT são harness, não "linguagem do
 >   sistema": o requisito C do edital recai sobre czip/cunzip e a bateria test_*.c.
+
+### 2026-06-23 — Correção de data race no CRC32 (achada via ThreadSanitizer)
+
+**Prompt do aluno:**
+> Após instalar o WSL e rodar a bateria completa (make all/test/stress/graficos/
+> asan/tsan/valgrind), o ThreadSanitizer acusou data race ao comprimir com
+> `--threads 8 --block-size 4096`. Verificar se as execuções e os outputs foram
+> os esperados e corrigir o que estiver errado.
+
+**Resposta da IA (resumo):**
+> A validação no WSL confirmou o pipeline concorrente real (M12/M14 verdes, que
+> não rodavam no Windows), Valgrind do czip limpo (0 leaks, 514 allocs/514 frees)
+> e teste de fogo de 1 GiB OK. Mas o TSan reportou 2 data races REAIS em
+> `src/crc32.c`: a tabela de lookup (`crc32_table`) e a flag `crc32_table_pronta`
+> eram inicializadas de forma PREGUIÇOSA na primeira chamada a `crc32_update`.
+> No pipeline (Módulo 13), várias `encoder_thread` chamam `crc32_buffer` →
+> `crc32_update` ao mesmo tempo: uma thread ESCREVE a tabela enquanto outras a
+> LEEM — corrida nos globais `crc32_table` (leitura@52/58 vs escrita@37) e
+> `crc32_table_pronta`. Corrigido trocando a init preguiçosa por `pthread_once`
+> (sob `HAVE_PTHREAD`): a tabela é montada exatamente uma vez e o pthread_once
+> estabelece happens-before entre a escrita e as leituras de todas as threads,
+> matando o race sem lock por chamada. No build sequencial (sem pthread) cai numa
+> flag booleana comum, sem custo. Também foi identificado um erro de USO do aluno:
+> rodou `valgrind ... ./cunzip --threads 8 ...`, mas `cunzip` não aceita
+> `--threads` (lê o nº de blocos do header) → o comando saiu com "argumento
+> inesperado" e o Valgrind do cunzip não chegou a descomprimir; deve rodar sem a
+> flag.
+
+**Erros da IA / Correções necessárias:**
+> Bug pré-existente da IA, dos Módulos 2/13: o CRC32 foi escrito com init
+> preguiçosa (correta para uso single-thread) e reaproveitado no pipeline
+> concorrente sem revisar a segurança de thread da tabela global. Só apareceu
+> quando o TSan pôde finalmente rodar (WSL) — no Windows o pipeline caía no
+> sequencial e o race nunca se manifestava. Corrigido nesta entrada.
+
+**Decisões de projeto tomadas:**
+> - pthread_once EM VEZ DE MUTEX POR CHAMADA: a tabela é imutável após montada;
+>   pthread_once paga o custo de sincronização só na primeira vez e depois as
+>   leituras são lock-free, sem penalizar o hot loop do CRC.
+> - GUARDA `#ifdef HAVE_PTHREAD`: mantém crc32.c compilável e sem dependência de
+>   pthread no build sequencial (Windows/MinGW win32), preservando o padrão já
+>   usado no resto do projeto.
+> - NÃO PRÉ-COMPUTAR A TABELA EM TEMPO DE COMPILAÇÃO: manteria 256 constantes
+>   escritas à mão (frágil); a montagem em runtime + pthread_once é igualmente
+>   segura e mantém o polinômio como única fonte da verdade.

@@ -16,12 +16,15 @@
 
 #include <stdbool.h>
 
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+#endif
+
 #define CRC32_POLY      0xEDB88320u  /* polinomio refletido (LSB-first) */
 #define CRC32_INITIAL   0xFFFFFFFFu  /* estado inicial / XOR final */
 
-/* Tabela de 256 entradas, construida sob demanda na primeira utilizacao. */
+/* Tabela de 256 entradas, construida uma unica vez na primeira utilizacao. */
 static uint32_t crc32_table[256];
-static bool     crc32_table_pronta = false;
 
 /* Preenche crc32_table a partir do polinomio refletido. */
 static void crc32_montar_tabela(void)
@@ -36,8 +39,36 @@ static void crc32_montar_tabela(void)
         }
         crc32_table[i] = crc;
     }
-    crc32_table_pronta = true;
 }
+
+/*
+ * Garante que crc32_table esteja pronta antes do primeiro uso.
+ *
+ * No pipeline concorrente (Modulo 13+) varias threads chamam crc32_update ao
+ * mesmo tempo; a inicializacao preguicosa simples (escrever a tabela enquanto
+ * outras threads a leem) e uma DATA RACE. Sob pthreads usamos pthread_once, que
+ * executa a montagem exatamente uma vez e estabelece happens-before entre a
+ * escrita da tabela e as leituras subsequentes de todas as threads. Sem
+ * pthreads (build sequencial) cai numa flag booleana comum, sem custo de lock.
+ */
+#ifdef HAVE_PTHREAD
+static pthread_once_t crc32_once = PTHREAD_ONCE_INIT;
+
+static void crc32_garantir_tabela(void)
+{
+    pthread_once(&crc32_once, crc32_montar_tabela);
+}
+#else
+static bool crc32_table_pronta = false;
+
+static void crc32_garantir_tabela(void)
+{
+    if (!crc32_table_pronta) {
+        crc32_montar_tabela();
+        crc32_table_pronta = true;
+    }
+}
+#endif
 
 uint32_t crc32_init(void)
 {
@@ -49,8 +80,7 @@ uint32_t crc32_update(uint32_t crc, const void *buf, size_t len)
     if (buf == NULL || len == 0)
         return crc;
 
-    if (!crc32_table_pronta)
-        crc32_montar_tabela();
+    crc32_garantir_tabela();
 
     const unsigned char *bytes = (const unsigned char *)buf;
     for (size_t i = 0; i < len; i++) {

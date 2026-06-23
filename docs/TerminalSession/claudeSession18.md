@@ -1516,6 +1516,27 @@
   valgrind --leak-check=full --error-exitcode=1 ./cunzip /tmp/t.cz /tmp/t.out
 
   ---
+
+  # ---- ASan (detecta leak/acesso indevido) ----
+make asan
+./czip --threads 8 inputs/text.txt out.cz      # 2 args, caminho válido
+./cunzip out.cz back.txt
+cmp inputs/text.txt back.txt                     # roundtrip sob ASan
+# esperado: nenhum "ERROR: AddressSanitizer", cmp silencioso
+
+# ---- TSan (detecta data race no pipeline) ----
+make tsan
+./czip --threads 8 inputs/text.txt out.cz
+./cunzip out.cz back.txt
+# esperado: nenhum "WARNING: ThreadSanitizer: data race"
+# IMPORTANTE: rodar com --threads >1 senao nao exercita o pipeline
+
+# ---- Valgrind (segunda via de leak) ----
+make clean all                                   # rebuild SEM sanitizer
+valgrind --leak-check=full --error-exitcode=1 ./czip --threads 8 inputs/text.txt out.cz
+valgrind --leak-check=full --error-exitcode=1 ./cunzip out.cz back.txt
+# esperado: "0 errors", "no leaks are possible", exit 0
+
   Faz a Fase 1 e me diz quando o Ubuntu estiver aberto (ou se travar em algum
   ponto). A partir da Fase 3 eu te ajudo a interpretar cada saída —
   principalmente o speedup e o relatório do TSan, que são o que pesa na defesa.
@@ -1525,3 +1546,4 @@
   Windows e WSL?
 
 ✻ Worked for 45s
+
