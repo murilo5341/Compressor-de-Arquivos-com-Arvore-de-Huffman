@@ -24,11 +24,15 @@ ifeq ($(OS),Windows_NT)
     RM      = del /Q /F
     EXE     = .exe
     RUN     =
+    # MinGW (modelo win32) nao tem libpthread: o teste da fila concorrente
+    # (Modulo 12) so entra no `make test` em Linux.
+    CONC_TESTS =
 else
     PTHREAD = -pthread
     RM      = rm -f
     EXE     =
     RUN     = ./
+    CONC_TESTS = test_queue
 endif
 
 CFLAGS  = $(CSTD) $(WARN) $(OPT) $(INCLUDE) $(PTHREAD)
@@ -44,7 +48,7 @@ COMMON_SRCS = src/block.c src/huffman.c src/heap.c src/bitio.c \
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format test_queue stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -72,8 +76,9 @@ cunzip: $(CUNZIP_SRCS)
 #   Modulo 8 - descompressao de bloco (test_block_decompress, linka block.c +
 #              huffman.c + heap.c + bitio.c)
 #   Modulo 9 - formato .cz (test_format, linka format.c)
+#   Modulo 12 - fila bloqueante (test_queue, linka queue.c + -pthread; so Linux)
 # ----------------------------------------------------------------------------
-test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format
+test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format $(CONC_TESTS)
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
@@ -110,6 +115,13 @@ test_block_decompress: tests/test_block_decompress.c src/block.c src/huffman.c s
 test_format: tests/test_format.c src/format.c
 	$(CC) $(CFLAGS) tests/test_format.c src/format.c -o test_format$(EXE) $(LDFLAGS)
 	$(RUN)test_format$(EXE)
+
+# Modulo 12 - fila bloqueante concorrente. Requer pthreads (-pthread), entao so
+# e compilado/rodado em Linux; no Windows (MinGW sem libpthread) CONC_TESTS e
+# vazio e este alvo nao e invocado pelo `make test`.
+test_queue: tests/test_queue.c src/queue.c
+	$(CC) $(CFLAGS) tests/test_queue.c src/queue.c -o test_queue$(EXE) $(LDFLAGS)
+	$(RUN)test_queue$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)

@@ -697,3 +697,65 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   Módulo 15 e o teste de corrupção formal é do Módulo 16. cunzip é um main()
 >   sem função pura unit-testável isolada, então não foi criado tests/test_cunzip.c
 >   (evita refatorar o main em lib — fora do escopo deste módulo).
+
+### 2026-06-23 — Módulo 12: fila bloqueante com mutex e condvars
+
+**Prompt do aluno:**
+> Implementar o Módulo 12 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou a fila bloqueante limitada (base da concorrência, E3) em
+> include/queue.h, src/queue.c e tests/test_queue.c. API: queue_create/
+> queue_push/queue_pop/queue_close/queue_destroy (+ queue_size). É um buffer
+> CIRCULAR de capacidade fixa guardando ponteiros opacos (void*), protegido por
+> um pthread_mutex_t e duas condvars: not_empty (consumidores esperam quando
+> vazia) e not_full (produtores esperam quando cheia). queue_push bloqueia
+> enquanto cheia e aberta; queue_pop bloqueia enquanto vazia e aberta e retorna
+> false quando vazia E fechada (sinal de fim, sem item sentinela); queue_close
+> faz broadcast nas duas condvars e a fila ainda DRENA os itens pendentes. As
+> esperas usam while (não if) por causa de wakeups espúrios. Guarda head+count
+> (não head/tail) para distinguir fila cheia de vazia sem desperdiçar slot. A
+> fila NÃO é dona dos itens (queue_destroy não os libera). O teste cobre a
+> modularizacao.md/REGRA 10: FIFO single-thread, close que drena e depois
+> sinaliza fim, push após close rejeitado, 1 produtor × 4 consumidores com
+> 100000 itens (soma consumida == soma 1..N, nada perde/duplica), backpressure
+> (fila de capacidade 2 + consumidor lento, soma confere) e bordas (NULL,
+> capacity 0). Atualizou o Makefile: variável CONC_TESTS (= test_queue só em
+> Linux, vazia no Windows) adicionada ao alvo test, novo alvo test_queue
+> (linka queue.c + -pthread) e .PHONY. make test no Windows segue passando e
+> PULA test_queue corretamente; toda a suíte unitária (Módulos 1-9) passa, 0
+> falhas.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado. Limitação de ambiente: o MinGW local (GCC 6.3.0,
+> modelo de threads win32) NÃO possui libpthread, então src/queue.c e
+> tests/test_queue.c não compilam/rodam no Windows. A validação possível no
+> Windows foi: (1) make test continua verde e pula test_queue via CONC_TESTS;
+> (2) verificação de sintaxe de queue.c e test_queue.c com gcc -std=c11 -Wall
+> -Wextra -Werror -fsyntax-only contra um pthread.h de stub (0 warnings),
+> confirmando assinaturas e tipos. A validação de execução concorrente e de
+> data races (make tsan) será feita em ambiente Linux, como já planejado para
+> E3 (Módulos 12-14) desde o Módulo 0.
+
+**Decisões de projeto tomadas:**
+> - BUFFER CIRCULAR com head+count (não head/tail): a posição de entrada é
+>   (head+count)%capacity, eliminando a ambiguidade "cheia x vazia" que surge
+>   quando head==tail.
+> - ESPERA EM while (não if): pthread_cond_wait pode acordar espuriamente e
+>   vários threads podem competir pelo mutex; a condição (cheia/vazia) é
+>   reavaliada ao readquirir o lock.
+> - SINAL DE FIM SEM SENTINELA: queue_pop retorna false quando vazia E fechada;
+>   o consumidor encerra com while (queue_pop(...)). queue_close usa broadcast
+>   (acorda todos), enquanto push/pop usam signal (liberam um parceiro).
+> - PUSH APÓS CLOSE REJEITADO (contrato explícito) e DRENAGEM: itens já
+>   enfileirados saem antes de pop sinalizar fim.
+> - FILA LIMITADA = BACKPRESSURE: capacidade fixa evita consumo ilimitado de
+>   memória quando um estágio é mais rápido (relevante no teste de fogo de 1 GB).
+> - A FILA NÃO É DONA DOS ITENS: queue_destroy não libera o que ficou
+>   enfileirado; a posse dos blocos é do pipeline (Módulos 13/14).
+> - PORTABILIDADE: queue só entra no make test em Linux (CONC_TESTS); no Windows
+>   é pulada. queue.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip
+>   quando o pipeline (Módulo 13) usá-lo.
