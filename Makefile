@@ -35,8 +35,11 @@ CFLAGS  = $(CSTD) $(WARN) $(OPT) $(INCLUDE) $(PTHREAD)
 LDFLAGS = $(PTHREAD)
 
 # Modulos de codigo compartilhados entre czip e cunzip.
-# Serao preenchidos conforme os modulos avancam (heap.c, crc32.c, huffman.c, ...).
-COMMON_SRCS =
+# Linkados a partir do Modulo 10 (czip sequencial), que usa toda a cadeia:
+# compressao de bloco (block.c -> huffman.c + heap.c + bitio.c), serializacao da
+# arvore (tree_serialization.c), CRC32 (crc32.c) e o formato .cz (format.c).
+COMMON_SRCS = src/block.c src/huffman.c src/heap.c src/bitio.c \
+              src/tree_serialization.c src/crc32.c src/format.c
 
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)

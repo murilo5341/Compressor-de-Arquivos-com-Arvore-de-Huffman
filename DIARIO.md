@@ -589,3 +589,54 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   MinGW) — portável Windows/Linux.
 > - format.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip a
 >   partir dos Módulos 10/11. Por ora, apenas no teste.
+
+### 2026-06-22 — Módulo 10: czip sequencial com CLI
+
+**Prompt do aluno:**
+> Implementar o Módulo 10 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou o compressor sequencial em src/main_czip.c (antes só esqueleto do
+> Módulo 0), fechando o lado da ESCRITA do formato .cz. A CLI (parse_args) aceita
+> --threads N e --block-size BYTES em qualquer ordem antes dos posicionais
+> <entrada> <saida.cz>; --threads é validado e IGNORADO nesta versão sequencial
+> (com aviso), existindo apenas para não retrabalhar o parsing no Módulo 13;
+> --block-size define o tamanho do bloco (padrão 64 KiB). O fluxo (compress_file):
+> grava o cabeçalho global com block_count provisório 0, lê a entrada em pedaços
+> de block_size bytes e, para cada bloco (compress_one_block), calcula o CRC32 do
+> conteúdo original (Mód. 2), comprime com block_compress (Mód. 6), serializa a
+> árvore com tree_serialize (Mód. 7) e grava cabeçalho do bloco + árvore + payload
+> no layout do Módulo 9; ao fim, fseek volta ao offset 0 e reescreve o cabeçalho
+> global com a quantidade REAL de blocos. Atualizou o Makefile preenchendo
+> COMMON_SRCS (block.c, huffman.c, heap.c, bitio.c, tree_serialization.c, crc32.c,
+> format.c), agora linkados ao czip/cunzip. Compila limpo com
+> gcc -std=c11 -Wall -Wextra -Werror (0 warnings). Smoke test manual confirmou:
+> magic CZHF; arquivo vazio -> 20 bytes (só cabeçalho global, block_count=0);
+> arquivo de 1 byte -> 47 bytes (20 + 24 + 2 árvore folha única + 1 payload),
+> block_count=1; texto de 243893 bytes -> 148528 bytes em 60 blocos de 4096; o
+> campo block_count reescrito conferido byte a byte (0, 1 e 60 em little-endian).
+> Suíte unitária completa (Módulos 1-9) segue passando, 0 falhas. Criou a doc
+> técnica docs/modulos/modulo_10.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - BLOCK_COUNT PROVISÓRIO + fseek DE REESCRITA: o cabeçalho global é gravado com
+>   block_count=0 e corrigido no fim, em vez de pré-calcular o tamanho do arquivo
+>   (nem todo arquivo é stat-ável de forma portável). A saída é regular/seekable,
+>   então o fseek ao offset 0 + cz_write_global_header é seguro.
+> - CLI com --threads ACEITO E IGNORADO na versão sequencial (parsing pronto para
+>   o Módulo 13) e --block-size com padrão 64 KiB; valores validados como inteiros
+>   positivos (--block-size também limitado a UINT32_MAX, pois é uint32 no formato).
+> - DIVISÃO EM BLOCOS por fread de block_size bytes; o último bloco pode ser menor.
+>   Cada bloco carrega árvore + CRC32 próprios (independência -> paralelismo e
+>   recuperação parcial nos módulos seguintes).
+> - COMMON_SRCS deixa de ser vazio: a partir do Módulo 10 czip/cunzip linkam toda
+>   a cadeia de ED. cunzip continua esqueleto até o Módulo 11 (linkar funções não
+>   usadas é inofensivo, sem warning).
+> - O roundtrip byte a byte (czip -> cunzip -> cmp) fica para o Módulo 11; aqui a
+>   validação foi por inspeção do formato gerado (tamanhos exatos e block_count).
