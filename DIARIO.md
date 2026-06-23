@@ -325,3 +325,50 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   de presença.
 > - huffman.c/heap.c continuam fora de COMMON_SRCS; serão linkados ao czip/cunzip
 >   só quando a compressão de bloco (Módulo 6) os usar. Por ora, apenas no teste.
+
+### 2026-06-22 — Módulo 5: escrita e leitura bit a bit
+
+**Prompt do aluno:**
+> Implementar o Módulo 5 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou a escrita/leitura bit a bit em include/bitio.h, src/bitio.c e
+> tests/test_bitio.c. API: BitWriter (bit_writer_init/write_bit/write_bits/flush/
+> free) acumulando bits num buffer de bytes que cresce sozinho (realloc dobrando),
+> e BitReader (bit_reader_init/read_bit/read_bits) lendo de um buffer existente. O
+> empacotamento é MSB-first: o primeiro bit escrito ocupa o bit 7 do primeiro byte,
+> casando com a tabela de códigos do Módulo 4 (bits encostados à direita MSB-first)
+> — gravar um código é bit_writer_write_bits(w, code.bits, code.length). O flush
+> fecha o último byte parcial com padding de ZEROS à direita; documentou o contrato
+> de que a parada real da decodificação vem de original_size do bloco (Módulos 8/9),
+> não do leitor de bits. O teste cobre a modularizacao.md/REGRA 10: roundtrip de uma
+> sequência de 13 bits NÃO alinhada (escreve, flush, lê de volta idêntica + padding),
+> empacotamento MSB-first com byte conhecido (1,0,1,1,0 -> 0xB0), bytes cheios sem
+> padding, write_bits/read_bits com código de 11 bits, bordas (fim de fluxo -> -1,
+> count 0, count > 64, segurança contra NULL) e crescimento do buffer (10000 bits ->
+> 1250 bytes, vários reallocs) — 33 verificações, 0 falhas. Atualizou o alvo `test`
+> do Makefile (test_bitio linkando bitio.c) e o .PHONY. Compila limpo com
+> gcc -std=c11 -Wall -Wextra -Werror (0 warnings); suíte completa (heap, CRC32,
+> árvore, códigos, bitio) passa. Criou a doc técnica docs/modulos/modulo_05.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - ORDEM MSB-FIRST (primeiro bit no bit 7 do byte) para casar exatamente com a
+>   representação de HuffCode do Módulo 4 (bits encostados à direita, MSB-first):
+>   escrever um código vira emitir da posição length-1 até 0.
+> - BUFFER DINÂMICO dobrando a capacidade (custo amortizado O(1) por byte), porque
+>   o tamanho comprimido só é conhecido ao final da escrita.
+> - PADDING COM ZEROS no flush; o bit I/O NÃO decide onde o conteúdo útil termina.
+>   A parada real é por original_size do bloco (Módulos 8/9), evitando gravar a
+>   contagem exata de bits (original_size já é obrigatório no cabeçalho — Módulo 9).
+> - STRUCTS PÚBLICAS: o chamador precisa de buffer/byte_count após o flush; o
+>   BitReader aponta para memória externa (sem buffer próprio, sem função de free).
+> - API NULL-safe e com flag de erro (BitWriter.error): falha de alocação vira no-op
+>   retornando false, sem corromper o buffer parcial.
+> - bitio.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip quando a
+>   compressão de bloco (Módulo 6) passar a usá-lo. Por ora, apenas no teste.
