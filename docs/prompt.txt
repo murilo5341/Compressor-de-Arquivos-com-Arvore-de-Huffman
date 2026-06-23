@@ -1,6 +1,6 @@
-Implemente o MÓDULO_ALVO com base no estado atual do repositório.
+Implemente o MODULO_ALVO com base no estado atual do repositório.
 
-Antes de implementar, leia os seguintes arquivos de RULES.md, modularizacao.md (do MODULO_ALVO), docs/context.md, docs/implementacao.md, DIARIO.md, Makefile, docs/modulos/_template.md.
+Antes de implementar, leia os seguintes arquivos: RULES.md, modularizacao.md (do MODULO_ALVO), docs/context.md, docs/implementacao.md, DIARIO.md, Makefile, docs/modulos/_template.md.
 
 Use modularizacao.md como especificação principal do módulo e siga o padrão já estabelecido do ultimo modulo implementado.
 
