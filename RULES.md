@@ -245,7 +245,21 @@ Além dos testes específicos de cada módulo, o projeto deve conter testes auto
 | **Defesa oral individual** | **50%** |
 | Engenharia (Makefile, testes, organização, commits) | 5% |
 
-## REGRA 13 — Insercao de Commit e Push
+## REGRA 13 — Insercao de Commit e Push AUTOMATICOS
+
+>Utilize as regras de convencao de commits em TODOS os commits, no formato:
+
+feat
+fix
+docs
+style
+refactor
+test
+chore
+build
+ci
+perf
+revert	
 
 Ao concluir cada módulo com sucesso, faça:
   git status
