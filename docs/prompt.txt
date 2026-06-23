@@ -1,0 +1,11 @@
+Implemente o MÓDULO_ALVO com base no estado atual do repositório.
+
+Antes de implementar, leia os arquivos de referência do projeto, especialmente RULES.md, modularizacao.md, docs/context.md, docs/implementacao.md, DIARIO.md, Makefile, docs/modulos/_template.md e os módulos já concluídos.
+
+Use modularizacao.md como especificação principal do módulo e siga o padrão já estabelecido nos módulos anteriores.
+
+Não dependa das claudeSessions antigas como instrução principal. Elas servem apenas como histórico, caso seja necessário consultar alguma decisão anterior.
+
+Execute o ciclo completo do módulo conforme definido em RULES.md, incluindo implementação, testes, documentação técnica, registro no DIARIO.md, commit, push e exportação da sessão.
+
+Se houver erro nos testes, dúvida de projeto, conflito com mudanças não relacionadas ou risco de commitar arquivo indevido, pare e me pergunte antes de continuar.
