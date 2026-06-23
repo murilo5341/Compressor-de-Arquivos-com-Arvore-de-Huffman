@@ -526,3 +526,66 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 > - block.c passa a conter compressão (Módulo 6) e descompressão (Módulo 8); ainda
 >   NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip a partir do Módulo
 >   10/11. Por ora, apenas nos testes.
+
+### 2026-06-22 — Módulo 9: formato do arquivo .cz
+
+**Prompt do aluno:**
+> Implementar o Módulo 9 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou o formato do arquivo .cz em include/format.h, src/format.c e
+> tests/test_format.c. API de (de)serialização dos cabeçalhos: o cabeçalho
+> GLOBAL (CzGlobalHeader: magic "CZHF", version, block_size, block_count — 20
+> bytes) com cz_global_header_init/cz_write_global_header/cz_read_global_header
+> (a leitura valida magic e versão), e o cabeçalho de BLOCO (CzBlockHeader:
+> block_index, original_size, compressed_size, tree_size, original_crc32 — 24
+> bytes) com cz_write_block_header/cz_read_block_header. Todos os inteiros são
+> gravados em LITTLE-ENDIAN byte a byte (helpers write_u32_le/write_u64_le e
+> os pares de leitura), independente do endianess nativo, para portabilidade.
+> Implementou também cz_skip_block_payload, que salta tree_size +
+> compressed_size bytes (fseek SEEK_CUR) deixando o arquivo no início do próximo
+> cabeçalho — é a peça que permite ao cunzip (Módulo 11) PULAR um bloco
+> corrompido sem perder a sincronização. O módulo NÃO comprime nem descomprime:
+> só lê/escreve cabeçalhos; os bytes da árvore serializada (Módulo 7) e do
+> payload comprimido (Módulo 6) são gravados/lidos separadamente pelo
+> czip/cunzip usando tree_size e compressed_size. O teste usa tmpfile() (C
+> padrão, portável) e cobre a modularizacao.md/REGRA 10: roundtrip do cabeçalho
+> global, verificação do LAYOUT little-endian em bytes crus (version=1 → 01 00
+> 00 00; valores 0x04030201 e 0x0807060504030201 conferidos byte a byte),
+> roundtrip do cabeçalho de bloco, magic inválido → leitura falha, versão
+> incompatível → leitura falha, salto de bloco (escreve b0+tree+payload+b1, lê
+> b0, salta, lê b1 correto) e bordas (NULL e arquivo truncado) — 51
+> verificações, 0 falhas. Atualizou o Makefile (alvo test_format linkando
+> format.c, .PHONY e alvo test). Compila limpo com gcc -std=c11 -Wall -Wextra
+> -Werror (0 warnings); suíte completa (heap, CRC32, árvore, códigos, bitio,
+> compressão, serialização, descompressão, formato) passa. Criou a doc técnica
+> docs/modulos/modulo_09.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - ENDIANESS LITTLE-ENDIAN DOCUMENTADA, gravada BYTE A BYTE: cada uint32/uint64
+>   é desmontado/remontado em bytes na ordem fixada, em vez de gravar a
+>   representação nativa de memória. Garante portabilidade entre arquiteturas
+>   (lacuna menor de endianess apontada na revisão do modularizacao.md).
+> - TAMANHOS ANTES DOS DADOS no cabeçalho do bloco (tree_size, compressed_size):
+>   premissa de design que habilita cz_skip_block_payload a localizar o início
+>   do próximo bloco mesmo com o atual corrompido (RULES REGRA 5/9). O salto não
+>   confia no conteúdo do bloco, apenas nos tamanhos.
+> - original_crc32 (CRC32 do conteúdo ORIGINAL, Módulo 2) e original_size já
+>   reservados no cabeçalho do bloco — sem retrabalho do formato (CRC32 movido
+>   para a fundação na revisão do plano).
+> - MAGIC "CZHF" + VERSION validados na leitura: rejeita arquivos estranhos e
+>   formatos futuros incompatíveis. Magic/extensão .cz são escolha da equipe
+>   (não exigência do edital), documentados e defensáveis oralmente.
+> - cz_read_block_header retornando false sinaliza FIM da sequência de blocos
+>   (sem campo de "fim" explícito); a contagem real está em block_count do
+>   cabeçalho global.
+> - Teste com tmpfile() (C padrão) em vez de open_memstream (POSIX, ausente no
+>   MinGW) — portável Windows/Linux.
+> - format.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip a
+>   partir dos Módulos 10/11. Por ora, apenas no teste.

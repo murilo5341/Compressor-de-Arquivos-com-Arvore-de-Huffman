@@ -41,7 +41,7 @@ COMMON_SRCS =
 CZIP_SRCS   = src/main_czip.c   $(COMMON_SRCS)
 CUNZIP_SRCS = src/main_cunzip.c $(COMMON_SRCS)
 
-.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress stress clean asan tsan valgrind help
+.PHONY: all test test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format stress clean asan tsan valgrind help
 
 # ----------------------------------------------------------------------------
 # Compilacao principal
@@ -68,8 +68,9 @@ cunzip: $(CUNZIP_SRCS)
 #              tree_serialization.c + huffman.c + heap.c + bitio.c)
 #   Modulo 8 - descompressao de bloco (test_block_decompress, linka block.c +
 #              huffman.c + heap.c + bitio.c)
+#   Modulo 9 - formato .cz (test_format, linka format.c)
 # ----------------------------------------------------------------------------
-test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress
+test: test_heap test_crc32 test_huffman_tree test_huffman_codes test_bitio test_block_compress test_tree_serialization test_block_decompress test_format
 
 test_heap: tests/test_heap.c src/heap.c
 	$(CC) $(CFLAGS) tests/test_heap.c src/heap.c -o test_heap$(EXE) $(LDFLAGS)
@@ -102,6 +103,10 @@ test_tree_serialization: tests/test_tree_serialization.c src/tree_serialization.
 test_block_decompress: tests/test_block_decompress.c src/block.c src/huffman.c src/heap.c src/bitio.c
 	$(CC) $(CFLAGS) tests/test_block_decompress.c src/block.c src/huffman.c src/heap.c src/bitio.c -o test_block_decompress$(EXE) $(LDFLAGS)
 	$(RUN)test_block_decompress$(EXE)
+
+test_format: tests/test_format.c src/format.c
+	$(CC) $(CFLAGS) tests/test_format.c src/format.c -o test_format$(EXE) $(LDFLAGS)
+	$(RUN)test_format$(EXE)
 
 # ----------------------------------------------------------------------------
 # Teste de stress / carga (sera implementado no Modulo 17 - teste de fogo)
