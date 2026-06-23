@@ -640,3 +640,60 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   usadas é inofensivo, sem warning).
 > - O roundtrip byte a byte (czip -> cunzip -> cmp) fica para o Módulo 11; aqui a
 >   validação foi por inspeção do formato gerado (tamanhos exatos e block_count).
+
+### 2026-06-23 — Módulo 11: cunzip sequencial
+
+**Prompt do aluno:**
+> Implementar o Módulo 11 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou o descompressor sequencial em src/main_cunzip.c (antes só esqueleto
+> do Módulo 0), fechando o lado da LEITURA do formato .cz e completando o roundtrip
+> byte a byte. A CLI (parse_args) aceita os dois posicionais <entrada.cz> <saida>.
+> O fluxo (decompress_file): abre o .cz, lê e VALIDA o cabeçalho global (magic CZHF
+> + versão, Mód. 9) e itera os block_count blocos. Para cada bloco
+> (decompress_one_block): lê o cabeçalho (Mód. 9), lê a árvore serializada e a
+> reconstrói com tree_deserialize (Mód. 7), lê o payload e descomprime com
+> block_decompress até original_size bytes (Mód. 8), recalcula o CRC32 do conteúdo
+> restaurado (Mód. 2) e compara com o gravado; se válido, grava o bloco na saída.
+> RECUPERAÇÃO PARCIAL: a posição do próximo bloco é recalculada do cabeçalho
+> (offset do payload + tree_size + compressed_size) e aplicada com fseek a cada
+> iteração, então um bloco corrompido (CRC divergente, árvore/payload inválido) é
+> detectado, descartado e PULADO sem perder a sincronização — os demais blocos
+> continuam. Compila limpo com gcc -std=c11 -Wall -Wextra -Werror (0 warnings).
+> Roundtrip czip->cunzip->cmp validado em 7 casos (vazio, 1 byte, símbolo
+> repetido, todos os 256 valores de byte, texto, aleatório 200 KB e multi-bloco
+> com --block-size 256), todos IDÊNTICOS. Teste de corrupção: arquivo de texto em
+> 75 blocos (block-size 2048), 1 byte do payload do meio invertido -> bloco 37
+> detectado por CRC32 e descartado, 74 blocos restantes restaurados (saída
+> 149952 = 152000 - 2048, exatamente um bloco a menos), exit code 1. Suíte
+> unitária completa (Módulos 1-9) segue passando, 0 falhas. Criou a doc técnica
+> docs/modulos/modulo_11.md.
+
+**Erros da IA / Correções necessárias:**
+> Nenhum erro identificado nesta interação.
+
+**Decisões de projeto tomadas:**
+> - RESINCRONIZAÇÃO POR OFFSET DO CABEÇALHO (não pelo conteúdo): a cada bloco
+>   grava-se payload_start = ftell e, ao fim do processamento, fseek para
+>   payload_start + tree_size + compressed_size. Assim o salto de bloco corrompido
+>   (RULES REGRA 5) funciona mesmo sem confiar no conteúdo do bloco — só nos
+>   tamanhos do cabeçalho. É o uso prático do que o Módulo 9 preparou.
+> - PARADA POR original_size: a descompressão usa original_size como critério de
+>   parada (Módulos 5/8), ignorando os bits de padding do último byte.
+> - EXIT CODE: 0 quando todos os blocos foram restaurados; 1 em erro fatal
+>   (abrir/criar arquivo, magic/versão inválidos, cabeçalho truncado, falha de
+>   escrita) OU quando algum bloco foi descartado por corrupção (saída parcial
+>   gravada, com aviso no stderr). Distingue "fatal" de "escrita na saída" via um
+>   flag write_error, para abortar o arquivo todo só quando a saída falha.
+> - CLI MÍNIMA (só os dois posicionais): cunzip não precisa de --threads/--block-size
+>   (esses parâmetros estão no .cz / no czip). O pipeline concorrente é dos
+>   Módulos 12-14.
+> - VALIDAÇÃO DO ROUNDTRIP feita por execução real (czip->cunzip->cmp) nos
+>   edge-cases obrigatórios; a suíte formal em script (test_roundtrip) é do
+>   Módulo 15 e o teste de corrupção formal é do Módulo 16. cunzip é um main()
+>   sem função pura unit-testável isolada, então não foi criado tests/test_cunzip.c
+>   (evita refatorar o main em lib — fora do escopo deste módulo).
