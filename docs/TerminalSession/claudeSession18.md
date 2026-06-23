@@ -1452,10 +1452,10 @@
   Fase 3 — Instalar ferramentas (dentro do Ubuntu)
 
   sudo apt update && sudo apt upgrade -y
-  sudo apt install -y build-essential valgrind git python3-matplotlib
+  sudo apt install -y build-essential valgrind git gnuplot
 
   build-essential traz gcc+make (com TSan/ASan embutidos); valgrind e
-  python3-matplotlib fecham as provas e os gráficos.
+  gnuplot fecham as provas e os gráficos.
 
   Confere:
   gcc --version
