@@ -423,3 +423,56 @@ E ir dessa forma de acordo com cada etapa. O que eu ti fornecei é apenas um exe
 >   roundtrip antes de o Módulo 8 existir.
 > - block.c ainda NÃO entra em COMMON_SRCS — só será linkado ao czip/cunzip a
 >   partir do Módulo 10. Por ora, apenas no teste.
+
+### 2026-06-22 — Módulo 7: serialização da árvore de Huffman
+
+**Prompt do aluno:**
+> Implementar o Módulo 7 com base no estado atual do repositório, usando
+> modularizacao.md como especificação principal e seguindo o padrão dos módulos
+> anteriores: implementação, testes, documentação técnica, registro no DIARIO.md,
+> commit e push.
+
+**Resposta da IA (resumo):**
+> Implementou a serialização da árvore de Huffman em include/tree_serialization.h,
+> src/tree_serialization.c e tests/test_tree_serialization.c. API:
+> tree_serialize(root, &bytes, &size) percorre a árvore em PRÉ-ORDEM escrevendo
+> bits com o BitWriter (Módulo 5) — folha = bit 1 + 8 bits do byte; nó interno =
+> bit 0 + serialização(esquerda) + serialização(direita) — e doa o buffer ao
+> chamador; tree_deserialize(bytes, size) faz a travessia recursiva simétrica com
+> o BitReader e devolve a raiz reconstruída. O formato é auto-delimitado: a leitura
+> consome exatamente os bits de cada nó, então a recursão para sozinha e os bits de
+> padding finais são ignorados. Folha única (um único byte distinto) vira "1 + 8
+> bits" = 2 bytes. Serialização truncada/corrompida → tree_deserialize retorna NULL
+> sem crash (suporte ao salto de bloco corrompido do Módulo 9/11). O teste cobre a
+> modularizacao.md/REGRA 10: roundtrip de árvore comum provado por igualdade
+> ESTRUTURAL recursiva E por igualdade da TABELA DE CÓDIGOS gerada pelas duas
+> árvores, folha única, todos os 256 valores de byte (tamanho serializado esperado
+> de 320 bytes), truncamento → NULL e bordas NULL — 30 verificações, 0 falhas.
+> Atualizou o Makefile (alvo test_tree_serialization linkando tree_serialization.c
+> + huffman.c + heap.c + bitio.c, .PHONY e alvo test). Compila limpo com
+> gcc -std=c11 -Wall -Wextra -Werror (0 warnings); suíte completa (heap, CRC32,
+> árvore, códigos, bitio, bloco, serialização) passa. Criou a doc técnica
+> docs/modulos/modulo_07.md.
+
+**Erros da IA / Correções necessárias:**
+> O teste comparava as tabelas de códigos das duas árvores com memcmp sobre o
+> array de HuffCode { uint64_t bits; uint8_t length; }, mas a struct tem bytes de
+> PADDING entre 'length' e o fim, com conteúdo indefinido — o memcmp falhava mesmo
+> com os valores logicamente iguais. Corrigido com uma comparação campo a campo
+> (bits + length). A igualdade estrutural recursiva já passava; o ajuste foi só na
+> verificação da tabela.
+
+**Decisões de projeto tomadas:**
+> - FORMATO PRÉ-ORDEM (1 = folha + 8 bits do byte; 0 = nó interno + esq + dir),
+>   bit a bit, MSB-first, reusando o bit I/O do Módulo 5 — mínimo e auto-delimitado,
+>   sem contador de nós nem marcador de fim.
+> - TAMANHO EM BYTES no resultado (não em bits): casa com o tree_size do cabeçalho
+>   (Módulo 9); os bits de padding finais são inofensivos porque a recursão da
+>   leitura para ao completar a árvore.
+> - 'frequency' NÃO é restaurado na desserialização (fica 0): a decodificação só
+>   precisa de is_leaf, symbol e dos filhos.
+> - DOAÇÃO DO BUFFER do BitWriter ao chamador (sem cópia), mesmo padrão do Módulo 6.
+> - ROBUSTEZ: fim de fluxo no meio da árvore → tree_deserialize retorna NULL sem
+>   crash, preparando o salto de bloco corrompido (Módulos 9/11).
+> - tree_serialization.c ainda NÃO entra em COMMON_SRCS — só será linkado ao
+>   czip/cunzip a partir do Módulo 9/10. Por ora, apenas no teste.
