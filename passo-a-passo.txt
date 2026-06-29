@@ -1,0 +1,423 @@
+================================================================================
+ PASSO A PASSO - TESTE DE TODAS AS FEATURES
+ Compressor de Arquivos com Arvore de Huffman (Tema 11)
+================================================================================
+
+COMO USAR ESTE DOCUMENTO
+  - Rode os passos NA ORDEM, de cima para baixo.
+  - Cada passo tem tres partes:
+        O QUE FAZ  -> para que serve o comando / qual feature ele prova
+        RODE       -> o comando exato para colar no terminal
+        ESPERADO   -> o que deve aparecer; se aparecer outra coisa, ANOTE. 
+  - Tudo deve ser feito no LINUX (WSL/Ubuntu). Os sanitizers (asan/tsan) e o
+    Valgrind NAO existem no Windows; o speedup real (threads) so acontece no
+    Linux. No Windows o czip cai no caminho sequencial.
+  - Sempre que um passo for PROVA AVALIADA (marcado com [PROVA]), copie a saida
+    do terminal para um arquivo/print. Sao as evidencias do trabalho.
+
+LEMBRETES DE SINTAXE
+  - czip   recebe DOIS nomes: <entrada> <saida.cz>
+           ./czip [--threads N] [--block-size BYTES] <entrada> <saida.cz>
+  - cunzip recebe DOIS nomes: <entrada.cz> <saida>
+           ./cunzip <entrada.cz> <saida>
+           ATENCAO: cunzip NAO aceita --threads (le o nro de blocos do header).
+  - A entrada e um arquivo que JA existe. A saida e um nome que VOCE inventa.
+  - Ver o codigo de saida do ultimo comando:  echo $?
+        0  = sucesso
+        1  = erro tratado (ex.: bloco corrompido) - SEM crash, esperado
+        >=128 = terminou por SINAL (ex.: 139 = segfault) - isso seria FALHA.
+
+--------------------------------------------------------------------------------
+ PARTE 0 - PREPARO DO AMBIENTE
+--------------------------------------------------------------------------------
+
+PASSO 0.1 - Abrir o Ubuntu e entrar na pasta do projeto
+  O QUE FAZ: posiciona o terminal na raiz do repositorio (onde esta o Makefile).
+  RODE:
+      cd ~/Compressor-de-Arquivos-com-Arvore-de-Huffman
+  ESPERADO: o prompt passa a mostrar .../Compressor-de-Arquivos-com-Arvore-de-Huffman$
+
+PASSO 0.2 - Atualizar o codigo (pegar a ultima versao do GitHub)
+  O QUE FAZ: garante que voce esta testando a versao mais recente (inclui a
+             correcao do data race do CRC32).
+  RODE:
+      git pull
+  ESPERADO: "Already up to date." ou um resumo de arquivos atualizados. Sem erro.
+
+PASSO 0.3 - Conferir as ferramentas necessarias
+  O QUE FAZ: confirma que gcc, make, valgrind e gnuplot estao instalados.
+  RODE:
+      gcc --version; make --version; valgrind --version; gnuplot --version
+  ESPERADO: cada um imprime sua versao. Se algum disser "command not found":
+      sudo apt update
+      sudo apt install -y build-essential valgrind gnuplot
+
+--------------------------------------------------------------------------------
+ PARTE 1 - COMPILACAO (FEATURE: build sem warnings)
+--------------------------------------------------------------------------------
+
+PASSO 1.1 - Compilar czip e cunzip
+  O QUE FAZ: compila os dois executaveis com -Wall -Wextra -Werror (tolerancia
+             zero a warnings, exigencia do edital). No Linux linka o pipeline
+             concorrente (pthreads).
+  RODE:
+      make clean all
+  ESPERADO: duas linhas de gcc (uma para czip, outra para cunzip), com
+            -pthread -DHAVE_PTHREAD, e NENHUM warning/erro. No fim, voltam os
+            arquivos executaveis 'czip' e 'cunzip'.
+  CONFIRA:
+      ls czip cunzip
+      -> devem aparecer os dois.
+
+--------------------------------------------------------------------------------
+ PARTE 2 - TESTES UNITARIOS (FEATURE: corretude de cada modulo)
+--------------------------------------------------------------------------------
+
+PASSO 2.1 - Rodar a bateria completa de testes
+  O QUE FAZ: compila e executa TODOS os testes unitarios (heap, CRC32, arvore
+             de Huffman, tabela de codigos, bit a bit, compressao/descompressao
+             de bloco, formato .cz) MAIS os testes de integracao (roundtrip,
+             corrupcao) e os concorrentes (fila e pipeline, so no Linux).
+  RODE:
+      make test
+  ESPERADO: para cada modulo, um bloco terminando em:
+                "N verificacoes, 0 falha(s)."
+                "TODOS OS TESTES PASSARAM."
+            e os de integracao:
+                "test_roundtrip: TODOS OS CASOS PASSARAM."
+                "test_corruption: ... (exit=1)"
+                "test_pipeline: OK - reorder deterministico ... + roundtrip ..."
+            ZERO falhas em qualquer um. Se algum imprimir "FALHOU", ANOTE.
+
+  (Opcional) Rodar um modulo isolado, ex. so o CRC32:
+      make test_crc32
+
+--------------------------------------------------------------------------------
+ PARTE 3 - USO BASICO: COMPRIMIR E DESCOMPRIMIR (FEATURE: roundtrip)
+--------------------------------------------------------------------------------
+
+PASSO 3.0 - Gerar arquivos de teste (varios tipos)
+  O QUE FAZ: cria a pasta inputs/ com 5 arquivos de tipos diferentes (texto,
+             logs, binario, dados repetidos, aleatorio), 8 MiB cada. Servem de
+             cobaia para os testes de uso e de taxa de compressao.
+  RODE:
+      make stress BENCH_SIZE=8388608 FIRE_SIZE=0
+  ESPERADO: "gen_inputs: concluido." e um 'ls' mostrando binary.bin, logs.txt,
+            random.bin, repeated.bin, text.txt. (Ele tambem ja roda um benchmark
+            rapido; isso e normal, vamos detalhar na PARTE 9.)
+
+PASSO 3.1 - Comprimir um arquivo
+  O QUE FAZ: cria o arquivo comprimido .cz a partir de um arquivo existente.
+  RODE:
+      ./czip inputs/text.txt saida.cz
+  ESPERADO:
+      czip: 'inputs/text.txt' -> 'saida.cz' (N bloco(s), block-size=65536, threads=1).
+  (N depende do tamanho. block-size 65536 = padrao. Sem flags, threads=1.)
+
+PASSO 3.2 - Descomprimir
+  O QUE FAZ: reconstroi o arquivo original a partir do .cz.
+  RODE:
+      ./cunzip saida.cz restaurado.txt
+  ESPERADO:
+      cunzip: 'saida.cz' -> 'restaurado.txt' (N bloco(s)).
+
+PASSO 3.3 - Provar que o roundtrip e PERFEITO (byte a byte)  [PROVA]
+  O QUE FAZ: compara o arquivo original com o restaurado, byte a byte. Esta e a
+             prova de que a compressao e SEM PERDAS (lossless).
+  RODE:
+      cmp inputs/text.txt restaurado.txt && echo "IGUAIS - roundtrip OK"
+  ESPERADO:
+      IGUAIS - roundtrip OK
+  (cmp em silencio = arquivos identicos. Se imprimir "differ: byte ...", FALHOU.)
+
+PASSO 3.4 - Ver a taxa de compressao
+  O QUE FAZ: compara o tamanho do original com o do .cz.
+  RODE:
+      ls -l inputs/text.txt saida.cz
+  ESPERADO: o saida.cz deve ser MENOR que o text.txt (texto comprime bem).
+
+--------------------------------------------------------------------------------
+ PARTE 4 - OPCOES DE LINHA DE COMANDO (FEATURES: --block-size e --threads)
+--------------------------------------------------------------------------------
+
+PASSO 4.1 - Tamanho de bloco (--block-size)
+  O QUE FAZ: muda o tamanho de cada bloco. Bloco MENOR -> MAIS blocos. Bloco
+             grande -> melhor compressao/menos overhead. Aqui forcamos muitos
+             blocos com 4096 bytes.
+  RODE:
+      ./czip --block-size 4096 inputs/text.txt saida_4k.cz
+  ESPERADO:
+      czip: 'inputs/text.txt' -> 'saida_4k.cz' (N bloco(s), block-size=4096, threads=1).
+  (N agora e MUITO maior que no passo 3.1, pois cada bloco e bem menor.)
+
+PASSO 4.2 - Numero de threads (--threads)  [FEATURE PRINCIPAL: paralelismo]
+  O QUE FAZ: ativa o pipeline concorrente com N threads codificadoras. Isso e o
+             que da o speedup (so no Linux). O escritor reordenador garante que
+             os blocos saiam na ordem certa.
+  RODE:
+      ./czip --threads 8 inputs/text.txt saida_8t.cz
+  ESPERADO:
+      czip: 'inputs/text.txt' -> 'saida_8t.cz' (N bloco(s), block-size=65536, threads=8).
+  OBS: o texto de AJUDA do czip (quando voce erra os argumentos) ainda diz que
+       threads e "ignorado/sequencial" - isso e um comentario DESATUALIZADO; no
+       Linux as threads funcionam de verdade (provado pelo test_pipeline e pelo
+       benchmark da PARTE 9).
+
+PASSO 4.3 - Determinismo: N threads produz o MESMO arquivo que 1 thread  [PROVA]
+  O QUE FAZ: comprime o mesmo arquivo com 8 threads e com 1 thread e prova que
+             os .cz sao IDENTICOS. Isso mostra que o paralelismo nao bagunca a
+             ordem dos blocos (escritor reordenador correto).
+  RODE:
+      ./czip --threads 8 inputs/text.txt par.cz
+      ./czip --threads 1 inputs/text.txt seq.cz
+      cmp par.cz seq.cz && echo "IDENTICOS - reorder deterministico OK"
+  ESPERADO:
+      IDENTICOS - reorder deterministico OK
+
+--------------------------------------------------------------------------------
+ PARTE 5 - TAXA DE COMPRESSAO POR TIPO DE ARQUIVO (FEATURE: Huffman na pratica)
+--------------------------------------------------------------------------------
+
+PASSO 5.1 - Comparar a compressao de tipos diferentes
+  O QUE FAZ: mostra que o ganho depende da REDUNDANCIA dos dados. Dados muito
+             repetidos comprimem muito; dados aleatorios quase nada (podem ate
+             crescer um pouco, por causa do cabecalho/arvore).
+  RODE:
+      for f in repeated.bin text.txt logs.txt binary.bin random.bin; do
+        ./czip inputs/$f c_$f.cz >/dev/null
+        o=$(stat -c%s inputs/$f); c=$(stat -c%s c_$f.cz)
+        echo "$f: original=$o  comprimido=$c"
+      done
+  ESPERADO (ordem aproximada do MELHOR para o PIOR ganho):
+      repeated.bin -> comprimido MUITO menor
+      text.txt     -> bem menor
+      logs.txt     -> menor
+      binary.bin   -> pouco menor
+      random.bin   -> parecido ou LEVEMENTE maior (aleatorio nao comprime)
+  (Tudo isso e o comportamento CORRETO de um compressor de Huffman.)
+
+--------------------------------------------------------------------------------
+ PARTE 6 - ROBUSTEZ / TRATAMENTO DE ERRO (FEATURE: nao quebrar com lixo)
+--------------------------------------------------------------------------------
+
+PASSO 6.1 - Arquivo de entrada inexistente
+  O QUE FAZ: prova que o czip falha de forma limpa (sem crash) se a entrada nao
+             existe.
+  RODE:
+      ./czip nao_existe.txt x.cz ; echo "exit=$?"
+  ESPERADO:
+      czip: nao foi possivel abrir a entrada 'nao_existe.txt'.
+      exit=1
+
+PASSO 6.2 - Argumentos faltando / errados
+  O QUE FAZ: prova que o programa mostra o modo de uso quando chamado errado.
+  RODE:
+      ./czip inputs/text.txt
+  ESPERADO: o texto "Uso: ./czip [--threads N] [--block-size BYTES] ..." e exit 1.
+
+PASSO 6.3 - Arquivo .cz invalido (nao e um .cz de verdade)
+  O QUE FAZ: prova que o cunzip rejeita um arquivo que nao tem o cabecalho .cz.
+  RODE:
+      echo "isto nao e um cz" > falso.cz
+      ./cunzip falso.cz saida_falsa ; echo "exit=$?"
+  ESPERADO:
+      cunzip: 'falso.cz' nao e um arquivo .cz valido (magic/versao).
+      exit=1
+
+PASSO 6.4 - Deteccao de PAYLOAD corrompido + recuperacao parcial  [PROVA]
+  O QUE FAZ: corrompe 1 byte do meio de um .cz e prova que o cunzip (a) DETECTA o
+             bloco ruim pelo CRC32, (b) NAO trava (exit 1, sem segfault), (c)
+             RECUPERA os demais blocos. Esta e a robustez exigida pelo edital.
+  RODE:
+      ./czip --block-size 4096 inputs/text.txt corromper.cz >/dev/null
+      # inverte um byte la pelo meio do arquivo:
+      meio=$(( $(stat -c%s corromper.cz) / 2 ))
+      printf '\xFF' | dd of=corromper.cz bs=1 seek=$meio count=1 conv=notrunc 2>/dev/null
+      ./cunzip corromper.cz recuperado.txt ; echo "exit=$?"
+  ESPERADO:
+      cunzip: bloco N corrompido (descartado); seguindo para o proximo.
+      cunzip: 1 bloco(s) corrompido(s) descartado(s).
+      exit=1
+  (exit 1 e ESPERADO aqui - e erro tratado, nao crash. O recuperado.txt contem
+   todos os blocos menos o corrompido. Se aparecer "Segmentation fault" ou
+   exit >=128, isso seria FALHA.)
+
+--------------------------------------------------------------------------------
+ PARTE 7 - TESTES DE INTEGRACAO EM SHELL (rodam sozinhos)
+--------------------------------------------------------------------------------
+
+PASSO 7.1 - Suite de roundtrip + edge-cases (vazio, 1 byte, 256 valores, etc.)
+  O QUE FAZ: gera os 7 casos de borda obrigatorios e prova czip->cunzip->cmp
+             byte a byte em cada um, com varios block-sizes; tambem valida a
+             corrupcao de arvore/metadados sem crash.
+  RODE:
+      make test_roundtrip
+  ESPERADO:
+      test_roundtrip: OK - roundtrip byte a byte dos 7 casos x 3 block-sizes.
+      test_roundtrip: OK - corrupcao de arvore/metadados reportada sem crash.
+      test_roundtrip: TODOS OS CASOS PASSARAM.
+
+PASSO 7.2 - Teste de corrupcao de payload (automatizado)
+  O QUE FAZ: versao automatica do PASSO 6.4 - corrompe um bloco do meio e exige
+             deteccao + recuperacao dos demais.
+  RODE:
+      make test_corruption
+  ESPERADO:
+      test_corruption: OK - bloco N/M corrompido no payload detectado por CRC32;
+                       demais blocos restaurados byte a byte (exit=1).
+
+PASSO 7.3 - Teste do pipeline concorrente (so Linux)
+  O QUE FAZ: comprime com N threads e com 1 thread e exige .cz IDENTICOS
+             (determinismo) + roundtrip. Prova o escritor reordenador.
+  RODE:
+      make test_pipeline
+  ESPERADO:
+      test_pipeline: OK - reorder deterministico (8 vs 1 thread identicos) + roundtrip ...
+
+--------------------------------------------------------------------------------
+ PARTE 8 - BENCHMARK / SPEEDUP (FEATURE: ganho com threads)  [PROVA]
+--------------------------------------------------------------------------------
+
+PASSO 8.1 - Rodar o benchmark (gera o CSV de resultados)
+  O QUE FAZ: para cada arquivo e para 1/2/4/8/16 threads, mede o tempo, valida o
+             roundtrip e grava uma linha em results/resultados.csv (tempo,
+             speedup, taxa, throughput). E a base dos graficos e do relatorio.
+  RODE:
+      make stress BENCH_SIZE=33554432 FIRE_SIZE=0 THREADS="1 2 4 8 16"
+  ESPERADO: linhas "run_bench: <arquivo> ... OK" para cada entrada e no fim
+            "run_bench: concluido -> results/resultados.csv".
+
+PASSO 8.2 - Olhar o resultado
+  O QUE FAZ: mostra o CSV em forma de tabela.
+  RODE:
+      column -s, -t results/resultados.csv | less -S
+      (saia do 'less' com a tecla q)
+  ESPERADO: uma tabela com colunas de threads, tempo, speedup, taxa, throughput.
+            O tempo deve CAIR (e o speedup SUBIR) conforme as threads aumentam,
+            ate saturar perto do numero de nucleos da maquina.
+
+--------------------------------------------------------------------------------
+ PARTE 9 - TESTE DE FOGO DE 1 GiB (FEATURE: carga pesada)  [PROVA]
+--------------------------------------------------------------------------------
+
+PASSO 9.1 - Rodar o teste de fogo (arquivo de ~1 GiB)
+  O QUE FAZ: alem das entradas normais, gera um arquivo de 1 GiB e mede o
+             speedup nele com 1/2/4/8/16 threads. E o teste de carga do edital.
+             Demora alguns minutos e usa ~2 GB de disco. (O fire_1g.bin esta no
+             .gitignore - nao vai para o repositorio.)
+  RODE:
+      make stress BENCH_SIZE=33554432 FIRE_SIZE=1073741824 THREADS="1 2 4 8 16"
+  ESPERADO: entre os arquivos do benchmark aparece "fire_1g.bin (fogo,
+            1073741824 bytes) OK" e no fim o CSV atualizado. Sem erros.
+
+--------------------------------------------------------------------------------
+ PARTE 10 - GRAFICOS DO RELATORIO (FEATURE: visualizacao)  [PROVA]
+--------------------------------------------------------------------------------
+
+PASSO 10.1 - Gerar os graficos a partir do CSV
+  O QUE FAZ: le results/resultados.csv e gera 4 PNGs (speedup, tempo,
+             throughput por threads e taxa por tipo de arquivo). Requer gnuplot.
+  RODE:
+      make graficos
+  ESPERADO:
+      plot_results: graficos gerados em 'results/graphs':
+        - speedup_vs_threads.png
+        - tempo_vs_threads.png
+        - throughput_vs_threads.png
+        - taxa_por_tipo.png
+
+PASSO 10.2 - Abrir um grafico para olhar
+  O QUE FAZ: abre a imagem no visualizador padrao do Windows (via WSL).
+  RODE:
+      cd results/graphs
+      explorer.exe speedup_vs_threads.png
+      cd ../..
+  ESPERADO: a imagem abre numa janela do Windows. (Se usou 'xdg-open' e deu
+            "command not found", use o explorer.exe como acima - e mais simples
+            no WSL.)
+
+--------------------------------------------------------------------------------
+ PARTE 11 - PROVAS DE MEMORIA E CONCORRENCIA (penalidades do edital)  [PROVA]
+--------------------------------------------------------------------------------
+ IMPORTANTE: 'make asan' e 'make tsan' SO COMPILAM com o sanitizador ligado.
+ Voce TEM de RODAR o czip/cunzip depois para a verificacao acontecer de fato.
+
+PASSO 11.1 - AddressSanitizer (detecta vazamento / acesso indevido de memoria)
+  O QUE FAZ: recompila com ASan e roda o roundtrip; o ASan aborta com erro se
+             houver leak ou acesso fora dos limites. Evita a penalidade -10%.
+  RODE:
+      make asan
+      ./czip --threads 8 --block-size 4096 inputs/text.txt saida.cz
+      ./cunzip saida.cz volta.txt
+      cmp inputs/text.txt volta.txt && echo "ASan: roundtrip OK"
+  ESPERADO: nenhuma linha comecando com "ERROR: AddressSanitizer". O "cmp"
+            silencioso e o "ASan: roundtrip OK" no fim. Se aparecer um relatorio
+            do ASan (pilha de chamadas com "ERROR"), ANOTE - e bug.
+
+PASSO 11.2 - ThreadSanitizer (detecta data race no pipeline)
+  O QUE FAZ: recompila com TSan e roda a compressao com muitas threads e muitos
+             blocos; o TSan reporta qualquer corrida entre threads. Evita a
+             penalidade -15%. (O data race do CRC32 ja foi corrigido; aqui voce
+             confirma que zerou.)
+  RODE:
+      make tsan
+      ./czip --threads 8 --block-size 4096 inputs/text.txt saida.cz
+      ./cunzip saida.cz volta.txt
+      cmp inputs/text.txt volta.txt && echo "TSan: roundtrip OK"
+  ESPERADO: NENHUM "WARNING: ThreadSanitizer: data race". No fim deve aparecer
+            "ThreadSanitizer: reported 0 warnings" (ou simplesmente nenhum aviso)
+            e "TSan: roundtrip OK". *** Esta e a prova de ausencia de data race;
+            salve o terminal inteiro. *** Se aparecer "data race", ANOTE.
+
+PASSO 11.3 - Valgrind (segunda via da prova de memoria)
+  O QUE FAZ: reconstroi SEM sanitizador e roda czip e cunzip sob o Valgrind, que
+             relata vazamentos e erros de memoria. Confirma 0 leaks.
+  RODE:
+      make clean all
+      valgrind --leak-check=full --error-exitcode=1 ./czip --threads 8 inputs/text.txt comprimido.cz
+      valgrind --leak-check=full --error-exitcode=1 ./cunzip comprimido.cz devolta.txt
+      cmp inputs/text.txt devolta.txt && echo "Valgrind: roundtrip OK"
+  ESPERADO em CADA um dos dois valgrind:
+      "All heap blocks were freed -- no leaks are possible"
+      "ERROR SUMMARY: 0 errors from 0 contexts"
+  ATENCAO: NO cunzip NAO use --threads (ele nao aceita a flag; senao sai
+           "argumento inesperado" e nao testa nada).
+
+--------------------------------------------------------------------------------
+ PARTE 12 - UTILITARIOS DO MAKEFILE
+--------------------------------------------------------------------------------
+
+PASSO 12.1 - Ver todos os alvos disponiveis
+  O QUE FAZ: lista os comandos do Makefile com uma breve descricao.
+  RODE:
+      make help
+  ESPERADO: a lista: all, test, stress, bench, graficos, asan, tsan, valgrind, clean.
+
+PASSO 12.2 - Limpar os artefatos gerados
+  O QUE FAZ: remove os executaveis e arquivos temporarios (deixa a arvore limpa).
+  RODE:
+      make clean
+  ESPERADO: a linha de remocao (rm -f ...) e a pasta sem czip/cunzip/test_*.
+
+================================================================================
+ CHECKLIST FINAL (marque ao concluir)
+================================================================================
+  [ ] make clean all .............. compila sem warnings
+  [ ] make test ................... todos os testes unitarios + integracao verdes
+  [ ] roundtrip basico (cmp) ...... arquivos identicos
+  [ ] --block-size ................ muda a quantidade de blocos
+  [ ] --threads ................... comprime com paralelismo
+  [ ] determinismo (8t == 1t) ..... .cz identicos
+  [ ] taxa por tipo ............... repetido comprime; aleatorio nao
+  [ ] erros tratados .............. entrada inexistente / .cz invalido sem crash
+  [ ] corrupcao de payload ........ detecta + recupera os demais (exit 1)
+  [ ] benchmark ................... CSV com speedup subindo
+  [ ] teste de fogo 1 GiB ......... fire_1g.bin OK
+  [ ] graficos .................... 4 PNGs gerados
+  [ ] ASan ........................ sem ERROR  [PROVA -10%]
+  [ ] TSan ........................ 0 data races [PROVA -15%]
+  [ ] Valgrind .................... 0 leaks, 0 errors [PROVA -10%]
+
+  >>> Guarde os outputs dos itens [PROVA] (PARTES 8, 9, 10 e 11). Sao as
+      evidencias que comprovam corretude, speedup e ausencia de race/leak.
+================================================================================
